@@ -60,6 +60,22 @@ if __name__ == "__main__":
     square.save(out, optimize=True)
     print(os.path.relpath(out, ROOT), square.size)
 
+    # In-app HD assets, each placed where it is legible:
+    #  - brand_symbol.png: symbol ONLY for the 47-56dp top-bar tile (the title
+    #    beside it already says "ZR 4"; wordmark text at that size is noise).
+    #  - brand_icon.png: the finished 1024 launcher tile, shown large on About.
+    # 512px is >= xxxhdpi for both display sizes, without shipping 1024px
+    # bitmaps in the APK (masters stay in docs/brand).
+    nodpi = os.path.join(RES, "drawable-nodpi")
+    os.makedirs(nodpi, exist_ok=True)
+    sym512 = square.resize((512, 512), Image.LANCZOS)
+    sym512.save(os.path.join(nodpi, "brand_symbol.png"), optimize=True)
+    print("app/src/main/res/drawable-nodpi/brand_symbol.png", sym512.size)
+    icon1024 = Image.open(os.path.join(ROOT, "docs", "brand", "zr4_icon_1024.png")).convert("RGBA")
+    icon512 = icon1024.resize((512, 512), Image.LANCZOS)
+    icon512.save(os.path.join(nodpi, "brand_icon.png"), optimize=True)
+    print("app/src/main/res/drawable-nodpi/brand_icon.png", icon512.size)
+
     for dens, sz in FG.items():
         fg = fit_inside(Image.new("RGBA", (sz, sz), (0, 0, 0, 0)), symbol, 0.60)
         path = os.path.join(RES, f"mipmap-{dens}", "ic_launcher_foreground.png")

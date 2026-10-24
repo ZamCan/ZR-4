@@ -108,3 +108,15 @@ Session copy is layered-accurate: the engine layer defines traceable
 sessions/observations/analysis runs (algorithm, version, parameters,
 outcome), but they are **not yet connected to this interface or persisted** —
 Sessions says exactly that instead of implying storage is absent entirely.
+
+## In-app brand placement (HD PNG, legible at size)
+
+One artwork, three correct places: the **top bar** uses `brand_symbol.png`
+(antenna/RF-arc symbol only — the title next to it already reads "ZR 4", and
+wordmark lettering at ~50dp is illegible), **About** showcases
+`brand_icon.png` (the finished launcher tile with the full lockup, large
+enough to read), and the **launcher** uses the tile + symbol-only adaptive
+foreground. In-app PNGs ship at 512px (>= xxxhdpi for their display sizes);
+1024px masters remain in `docs/brand/` and everything regenerates from
+`tools/make_zr4_launcher_assets.py`. Superseded `brand_mark`/`brand_lockup`
+resources were removed from `res/` so the APK ships no duplicate artwork.

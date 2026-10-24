@@ -323,10 +323,12 @@ private fun AppHeader() {
                 .border(1.dp, glassBorder(), RoundedCornerShape(17.dp)),
             contentAlignment = Alignment.Center,
         ) {
+            // Symbol only at top-bar size: the ZR 4 wordmark beside it is the
+            // text; lettering inside a 47dp tile would be illegible noise.
             Image(
-                painter = painterResource(R.drawable.brand_mark),
+                painter = painterResource(R.drawable.brand_symbol),
                 contentDescription = "ZR 4 — ZamCan RF Observatory logo",
-                modifier = Modifier.size(47.dp),
+                modifier = Modifier.size(50.dp),
             )
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -931,10 +933,15 @@ private fun AboutScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // The finished launcher tile (HD PNG) at showcase size — the
+                // one place the full symbol + wordmark lockup is legible.
                 Image(
-                    painter = painterResource(R.drawable.brand_lockup),
+                    painter = painterResource(R.drawable.brand_icon),
                     contentDescription = "ZR 4 — ZamCan RF Observatory",
-                    modifier = Modifier.size(150.dp),
+                    modifier = Modifier
+                        .size(124.dp)
+                        .shadow(14.dp, RoundedCornerShape(28.dp), spotColor = Gold.copy(alpha = 0.35f))
+                        .clip(RoundedCornerShape(28.dp)),
                 )
                 Text("ZamCan RF Observatory", fontSize = 23.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
                 Text(
