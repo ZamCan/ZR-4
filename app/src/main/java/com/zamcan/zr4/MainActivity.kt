@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +54,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -158,6 +161,21 @@ private fun Zr4App() {
         AuroraBackground()
         Scaffold(
             containerColor = Color.Transparent,
+            topBar = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .shadow(12.dp, RoundedCornerShape(22.dp), spotColor = Color.Black.copy(alpha = 0.4f))
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(glassBrush(Gold))
+                        .border(1.dp, glassBorder(), RoundedCornerShape(22.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    AppHeader()
+                }
+            },
             bottomBar = {
                 FloatingGlassNav(
                     section = section,
@@ -171,11 +189,9 @@ private fun Zr4App() {
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp)
-                    .padding(top = 18.dp, bottom = 30.dp),
+                    .padding(top = 8.dp, bottom = 30.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                AppHeader()
-
                 Crossfade(
                     targetState = section,
                     animationSpec = tween(durationMillis = 340),
@@ -277,7 +293,7 @@ private fun FloatingGlassNav(section: AppSection, onSelect: (AppSection) -> Unit
                             if (selected) Gold.copy(alpha = 0.45f) else Color.Transparent,
                             RoundedCornerShape(20.dp),
                         )
-                        .clickable { onSelect(item) }
+                        .selectable(selected = selected, role = Role.Tab) { onSelect(item) }
                         .semantics { contentDescription = item.label }
                         .padding(vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -445,7 +461,7 @@ private fun GoldButton(text: String, onClick: () -> Unit, modifier: Modifier = M
             .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Gold.copy(alpha = 0.45f))
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(listOf(GoldLight, Gold, GoldDeep)))
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Ink, fontWeight = FontWeight.Black, fontSize = 13.sp, maxLines = 1)
@@ -460,7 +476,7 @@ private fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = 
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, GlassLine, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -697,6 +713,29 @@ private fun SpectrumPanel(selectedSource: String) {
             Text("FREQUENCY AXIS: UNAVAILABLE", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
             Text("0 SAMPLES", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
         }
+        Spacer(Modifier.height(6.dp))
+        SpectrumContextRow("SOURCE", selectedSource)
+        SpectrumContextRow("OBSERVATION TIME", "—  ·  no samples acquired")
+        SpectrumContextRow("FREQUENCY · LEVEL · UNITS", "—  ·  defined by the source, when samples exist")
+    }
+}
+
+/** Label/value context under the spectrum. Dashes are explicit: nothing measured yet. */
+@Composable
+private fun SpectrumContextRow(label: String, value: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(GlassLine))
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(
+                label, color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp, modifier = Modifier.weight(0.42f),
+            )
+            Text(value, color = Paper, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.weight(0.58f))
+        }
     }
 }
 
@@ -738,6 +777,16 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             Text(
                 "Choose a source to inspect its intended role and current implementation status.",
                 color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
+            )
+        }
+        GlassPanel(accent = Mint, shape = RoundedCornerShape(20.dp), padding = 15.dp) {
+            Text("How to read these states", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "NOT IMPLEMENTED — planned module; acquisition is not active in this build.\n" +
+                    "HARDWARE REQUIRED — needs a compatible external receiver before any RF data can exist.\n" +
+                    "SELECTED — inspection only; selecting a module never starts a measurement.",
+                color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
             )
         }
         SourceDetailCard("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-based visible-light sampling", "NOT IMPLEMENTED",
@@ -791,7 +840,7 @@ private fun SourceDetailCard(
             .clip(RoundedCornerShape(22.dp))
             .background(glassBrush(tint))
             .border(if (selected) 1.5.dp else 1.dp, border, RoundedCornerShape(22.dp))
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
@@ -831,8 +880,9 @@ private fun SessionsScreen() {
                 IconBadge(InstrumentIconKind.Layers, Stone, 60.dp)
                 Text("No sessions recorded", fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "Session storage is not implemented yet. No placeholder sessions or sample " +
-                        "measurements are shown as real records.",
+                    "The engine layer defines traceable sessions, observations and analysis runs, " +
+                        "but they are not connected to this interface and nothing is persisted on " +
+                        "this device yet. No placeholder records are shown.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
                 )
             }
@@ -852,13 +902,19 @@ private fun SessionsScreen() {
                             "'candidate detected' — never a confirmed transmitter or protocol.",
                         color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
                     )
+                    Text(
+                        "Selecting a recorded finding will open its detail: frequency, level and " +
+                            "units, evidence, limitations, and the analysis run that produced it.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
+                    )
                 }
             }
         }
-        SectionHeading("PLANNED SESSION METADATA", "TRACEABLE")
+        SectionHeading("SESSION RECORD FIELDS", "ENGINE-DEFINED")
         InfoRow("Timestamp", "Local time with explicit timezone handling", InstrumentIconKind.Clock, Mint)
         InfoRow("Observation source", "Device / adapter and source type", InstrumentIconKind.Antenna, Amber)
         InfoRow("Units and configuration", "Recorded alongside every measurement", InstrumentIconKind.Settings, Gold)
+        InfoRow("Analysis provenance", "Algorithm, version, parameters and outcome for every analysis run", InstrumentIconKind.Check, Mint)
         InfoRow("Export", "CSV after storage and validation are implemented", InstrumentIconKind.Export, Stone)
     }
 }

@@ -93,3 +93,18 @@ masks. `tools/make_zr4_launcher_assets.py` separates the antenna/RF-arc
 symbol from the wordmark at the transparent gap in the master artwork and
 fits it inside 60% of the 108dp foreground canvas (within the 66dp safe
 zone) at every density. Nothing is redrawn or re-proportioned.
+
+## Shell, spectrum context, and selection semantics
+
+The product identity now lives in a **pinned compact glass top bar**
+(status-bar inset respected); screens scroll beneath it, so "where am I"
+never scrolls away. Under the empty spectrum, a measurement-context strip
+(source, observation time, frequency·level·units) shows explicit dashes
+until real samples exist — the fields are present, values are never
+invented. Navigation uses proper tab semantics, source cards behave as a
+radio group, and both button styles expose the Button role.
+
+Session copy is layered-accurate: the engine layer defines traceable
+sessions/observations/analysis runs (algorithm, version, parameters,
+outcome), but they are **not yet connected to this interface or persisted** —
+Sessions says exactly that instead of implying storage is absent entirely.
