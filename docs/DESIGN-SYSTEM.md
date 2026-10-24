@@ -58,3 +58,28 @@ animate colour (240–260 ms). There are no continuous decorative animations:
 the standby state is static, and the spectrum still shows an empty grid and
 **NO DATA** — motion never fabricates a signal. Each screen has one primary
 CTA (Overview: "Configure observation source"); other actions are secondary.
+
+## Spectrum state model (interface state, not data)
+
+The Overview spectrum pane is driven by the module selected on the Sources
+screen — and by nothing else. `spectrumStateFor()` distinguishes **NO
+SOURCE**, **NOT IMPLEMENTED** (optical, Wi-Fi/Bluetooth) and **HARDWARE
+REQUIRED** (external SDR), each with its own waiting/empty explanation. In
+every state the plot is an empty grid labelled **NO DATA** with an
+unavailable frequency axis: no samples, peaks, levels, or units are ever
+invented to fill it. The pane is titled "Spectrum", never "Live", until a
+verified source is actually supplying samples.
+
+## Findings evidence language
+
+The Sessions screen carries an evidence-only Findings empty state. Findings
+may be created only from acquired samples with source, time, units, and
+configuration recorded; anything unverified is labelled **"candidate
+detected"** — never a confirmed transmitter or protocol. Technical detail
+belongs in a future finding-detail view, not on the overview.
+
+## Type floor
+
+Micro-labels (eyebrows, chips, statuses, axis captions) have a hard floor of
+10.5sp/11sp so the instrument stays legible at system font scales; nothing
+shrinks below that to make a layout fit.

@@ -87,6 +87,9 @@ private val Ink        = Color(0xFF090D0A)
 private val InkDeep    = Color(0xFF03070B)
 private val Emerald    = Color(0xFF151B16)
 private val Gold       = Color(0xFFD6B56D)
+private val GoldLight  = Color(0xFFF0D493)
+private val GoldDeep   = Color(0xFFB98F3E)
+private val InkLow     = Color(0xFF07130D)
 private val Amber      = Color(0xFFFFB86B)
 private val Mint       = Color(0xFF6EE7B7)
 private val Stone      = Color(0xFFC9BBA6)
@@ -180,6 +183,7 @@ private fun Zr4App() {
                 ) { current ->
                     when (current) {
                         AppSection.Overview -> OverviewScreen(
+                            selectedSource = selectedSource,
                             onExploreSources = { section = AppSection.Sources },
                             onOpenSessions = { section = AppSection.Sessions },
                         )
@@ -195,7 +199,7 @@ private fun Zr4App() {
                 Text(
                     "ZAMCAN  ·  ZR 4  ·  LOCAL WORKSPACE",
                     color = Muted.copy(alpha = 0.75f),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     letterSpacing = 1.4.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
@@ -212,7 +216,7 @@ private fun AuroraBackground() {
         Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(listOf(InkDeep, Ink, Color(0xFF07130D))),
+                Brush.verticalGradient(listOf(InkDeep, Ink, InkLow)),
             ),
     )
     Canvas(Modifier.fillMaxSize()) {
@@ -280,7 +284,7 @@ private fun FloatingGlassNav(section: AppSection, onSelect: (AppSection) -> Unit
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     InstrumentIcon(item.icon, tint, Modifier.size(22.dp))
-                    Text(item.label, color = tint, fontSize = 10.sp, maxLines = 1, fontWeight = FontWeight.SemiBold)
+                    Text(item.label, color = tint, fontSize = 11.sp, maxLines = 1, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -296,25 +300,25 @@ private fun AppHeader() {
     ) {
         Box(
             modifier = Modifier
-                .size(62.dp)
-                .shadow(10.dp, RoundedCornerShape(19.dp), spotColor = Gold.copy(alpha = 0.35f))
-                .clip(RoundedCornerShape(19.dp))
+                .size(56.dp)
+                .shadow(10.dp, RoundedCornerShape(17.dp), spotColor = Gold.copy(alpha = 0.35f))
+                .clip(RoundedCornerShape(17.dp))
                 .background(glassBrush(Gold))
-                .border(1.dp, glassBorder(), RoundedCornerShape(19.dp)),
+                .border(1.dp, glassBorder(), RoundedCornerShape(17.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 painter = painterResource(R.drawable.brand_mark),
                 contentDescription = "ZR 4 — ZamCan RF Observatory logo",
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(47.dp),
             )
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "ZAMCAN RF OBSERVATORY",
-                color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
             )
-            Text("ZR 4", color = Paper, fontSize = 28.sp, fontWeight = FontWeight.Black, lineHeight = 30.sp)
+            Text("ZR 4", color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Black, lineHeight = 28.sp)
             Text("Scientific observation workspace", color = Muted, fontSize = 12.sp)
         }
         GlassChip(dot = Mint, text = "LOCAL")
@@ -355,7 +359,7 @@ private fun GlassChip(dot: Color, text: String) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(6.dp).background(dot, CircleShape))
-        Text(text, color = dot, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
+        Text(text, color = dot, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp)
     }
 }
 
@@ -440,7 +444,7 @@ private fun GoldButton(text: String, onClick: () -> Unit, modifier: Modifier = M
             .height(52.dp)
             .shadow(12.dp, RoundedCornerShape(16.dp), spotColor = Gold.copy(alpha = 0.45f))
             .clip(RoundedCornerShape(16.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFFF0D493), Gold, Color(0xFFB98F3E))))
+            .background(Brush.linearGradient(listOf(GoldLight, Gold, GoldDeep)))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -466,7 +470,7 @@ private fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = 
 
 @Composable
 private fun Eyebrow(text: String, color: Color = Gold) {
-    Text(text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+    Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
 }
 
 @Composable
@@ -476,8 +480,8 @@ private fun SectionHeading(title: String, trailing: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(title, color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        Text(trailing, color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+        Text(title, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text(trailing, color = Gold, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
     }
 }
 
@@ -490,7 +494,7 @@ private fun TrustTag(text: String) {
             .background(Mint.copy(alpha = 0.10f))
             .border(1.dp, Mint.copy(alpha = 0.35f), RoundedCornerShape(9.dp))
             .padding(horizontal = 9.dp, vertical = 6.dp),
-        color = Mint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
+        color = Mint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp,
     )
 }
 
@@ -508,7 +512,7 @@ private fun InfoRow(label: String, value: String, icon: InstrumentIconKind = Ins
     ) {
         IconBadge(icon, tint, 34.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(label.uppercase(), color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(label.uppercase(), color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Text(value, color = Paper, fontSize = 14.sp, lineHeight = 20.sp)
         }
     }
@@ -517,7 +521,11 @@ private fun InfoRow(label: String, value: String, icon: InstrumentIconKind = Ins
 /* --------------------------------------------------------------- overview */
 
 @Composable
-private fun OverviewScreen(onExploreSources: () -> Unit, onOpenSessions: () -> Unit) {
+private fun OverviewScreen(
+    selectedSource: String,
+    onExploreSources: () -> Unit,
+    onOpenSessions: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Eyebrow("OBSERVATORY / OVERVIEW")
@@ -532,8 +540,8 @@ private fun OverviewScreen(onExploreSources: () -> Unit, onOpenSessions: () -> U
         StatusHero(onExploreSources)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("LIVE SPECTRUM", "NO SOURCE")
-            SpectrumPanel()
+            SectionHeading("SPECTRUM", spectrumStateFor(selectedSource).first)
+            SpectrumPanel(selectedSource)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -611,12 +619,44 @@ private fun StatusHero(onExploreSources: () -> Unit) {
 }
 
 @Composable
-private fun SpectrumPanel() {
+/**
+ * Empty-spectrum state for the currently selected module. This is interface
+ * state only: it names *why* there is nothing to plot (not implemented vs.
+ * hardware required vs. no source) and never fabricates samples, axes or
+ * peaks. Returns (state label, waiting label, empty-plot explanation).
+ */
+private fun spectrumStateFor(selectedSource: String): Triple<String, String, String> =
+    when (selectedSource) {
+        "Optical observation" -> Triple(
+            "NOT IMPLEMENTED",
+            "Selected: Optical observation — not implemented in this build",
+            "No optical samples have been acquired",
+        )
+        "Wi-Fi and Bluetooth" -> Triple(
+            "NOT IMPLEMENTED",
+            "Selected: Wi-Fi and Bluetooth — not implemented in this build",
+            "No Wi-Fi or Bluetooth observations have been acquired",
+        )
+        "External SDR" -> Triple(
+            "HARDWARE REQUIRED",
+            "Selected: External SDR — a compatible receiver is required",
+            "No receiver is connected, so no spectrum can be plotted",
+        )
+        else -> Triple(
+            "NO SOURCE",
+            "Waiting for verified input",
+            "Connect a supported source to plot observations",
+        )
+    }
+
+@Composable
+private fun SpectrumPanel(selectedSource: String) {
+    val spectrumState = spectrumStateFor(selectedSource)
     GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 16.dp) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Spectrum preview", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("Waiting for verified input", color = Muted, fontSize = 11.sp)
+                Text("Spectrum", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(spectrumState.second, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
             Text("RF / —", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
@@ -649,13 +689,13 @@ private fun SpectrumPanel() {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text("NO DATA", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                Text("Connect a supported source to plot observations", color = Muted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                Text(spectrumState.third, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 15.sp)
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-            Text("FREQUENCY AXIS: UNAVAILABLE", color = Muted, fontSize = 9.sp, letterSpacing = 0.6.sp)
-            Text("0 SAMPLES", color = Muted, fontSize = 9.sp, letterSpacing = 0.6.sp)
+            Text("FREQUENCY AXIS: UNAVAILABLE", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
+            Text("0 SAMPLES", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
         }
     }
 }
@@ -683,7 +723,7 @@ private fun SourceSummary(
                 modifier = Modifier.weight(1f))
         }
         Text(detail, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, minLines = 2)
-        Text(status, color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+        Text(status, color = tint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
     }
 }
 
@@ -761,12 +801,12 @@ private fun SourceDetailCard(
                 Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(subtitle, color = Muted, fontSize = 12.sp)
             }
-            Text(status, color = tint, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
+            Text(status, color = tint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
         }
         Text(detail, color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
         Text(
             if (selected) "SELECTED MODULE" else "TAP TO INSPECT",
-            color = if (selected) tint else Muted, fontSize = 9.sp,
+            color = if (selected) tint else Muted, fontSize = 10.5.sp,
             fontWeight = FontWeight.Bold, letterSpacing = 0.9.sp,
         )
     }
@@ -795,6 +835,24 @@ private fun SessionsScreen() {
                         "measurements are shown as real records.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
                 )
+            }
+        }
+        SectionHeading("FINDINGS", "EVIDENCE ONLY")
+        GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 18.dp) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(13.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                IconBadge(InstrumentIconKind.Crosshair, Gold, 44.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("No findings recorded", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Findings are created only from acquired samples with their source, time, " +
+                            "units and configuration recorded. Anything unverified is labelled " +
+                            "'candidate detected' — never a confirmed transmitter or protocol.",
+                        color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
+                    )
+                }
             }
         }
         SectionHeading("PLANNED SESSION METADATA", "TRACEABLE")
