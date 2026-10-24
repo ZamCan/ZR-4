@@ -2,7 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="false"
-        android:label="ZamCan RF Observatory"
+        android:icon="@drawable/ic_zr4"
+        android:label="ZR 4"
+        android:roundIcon="@drawable/ic_zr4"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
