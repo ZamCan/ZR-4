@@ -3,40 +3,25 @@ set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
 
-AAPT2="/data/data/com.termux/files/usr/bin/aapt2"
-PROPS="gradle.properties"
-BACKUP="$(mktemp)"
-
-if [ ! -x "$AAPT2" ]; then
-    echo "ERROR: Termux AAPT2 is unavailable: $AAPT2"
-    rm -f "$BACKUP"
-    exit 1
-fi
-
-cp "$PROPS" "$BACKUP"
-
-restore_props() {
-    cp "$BACKUP" "$PROPS"
-    rm -f "$BACKUP"
-}
-trap restore_props EXIT
-
 if [ "$#" -eq 0 ]; then
     set -- assembleDebug
 fi
 
-echo "========== VERIFY AAPT2 =========="
-"$AAPT2" version
+AAPT2="${ANDROID_AAPT2:-/data/data/com.termux/files/usr/bin/aapt2}"
 
-echo
-echo "========== APPLY TEMPORARY OVERRIDE =========="
-if ! grep -q '^android\.aapt2FromMavenOverride=' "$PROPS"; then
-    printf '\nandroid.aapt2FromMavenOverride=%s\n' "$AAPT2" >> "$PROPS"
+echo "========== BUILD ENVIRONMENT =========="
+if [ -x "$AAPT2" ]; then
+    echo "Using compatible local AAPT2: $AAPT2"
+    "$AAPT2" version
+    echo
+    echo "========== GRADLE BUILD =========="
+    ./gradlew -Dandroid.aapt2FromMavenOverride="$AAPT2" "$@" --console=plain
+else
+    echo "No local AAPT2 override found; using the Android Gradle Plugin default."
+    echo
+    echo "========== GRADLE BUILD =========="
+    ./gradlew "$@" --console=plain
 fi
-
-echo
-echo "========== RUN GRADLE =========="
-./gradlew "$@" --console=plain
 
 echo
 echo "========== BUILD FINISHED =========="
