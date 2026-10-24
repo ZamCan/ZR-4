@@ -83,3 +83,13 @@ belongs in a future finding-detail view, not on the overview.
 Micro-labels (eyebrows, chips, statuses, axis captions) have a hard floor of
 10.5sp/11sp so the instrument stays legible at system font scales; nothing
 shrinks below that to make a layout fit.
+
+## Adaptive-icon foreground
+
+Legacy launcher PNGs keep the full tile (symbol + "ZR 4" wordmark). The
+**adaptive-icon foreground is symbol-only**: launchers mask adaptive icons
+(circle, squircle, teardrop), and the low wordmark would clip in round
+masks. `tools/make_zr4_launcher_assets.py` separates the antenna/RF-arc
+symbol from the wordmark at the transparent gap in the master artwork and
+fits it inside 60% of the 108dp foreground canvas (within the 66dp safe
+zone) at every density. Nothing is redrawn or re-proportioned.
