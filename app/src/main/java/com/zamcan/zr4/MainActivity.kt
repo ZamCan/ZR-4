@@ -200,6 +200,10 @@ private fun Zr4App() {
                     when (current) {
                         AppSection.Overview -> OverviewScreen(
                             selectedSource = selectedSource,
+                            onOpenSource = { source ->
+                                selectedSource = source
+                                section = AppSection.Sources
+                            },
                             onExploreSources = { section = AppSection.Sources },
                             onOpenSessions = { section = AppSection.Sessions },
                         )
@@ -471,22 +475,6 @@ private fun GoldButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-private fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .height(52.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, GlassLine, RoundedCornerShape(16.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
-    }
-}
-
-@Composable
 private fun Eyebrow(text: String, color: Color = Gold) {
     Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
 }
@@ -541,6 +529,7 @@ private fun InfoRow(label: String, value: String, icon: InstrumentIconKind = Ins
 @Composable
 private fun OverviewScreen(
     selectedSource: String,
+    onOpenSource: (String) -> Unit,
     onExploreSources: () -> Unit,
     onOpenSessions: () -> Unit,
 ) {
@@ -568,28 +557,23 @@ private fun OverviewScreen(
                 if (maxWidth >= 580.dp) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Camera-visible light", "IN DEVELOPMENT", Modifier.weight(1f))
-                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "IN DEVELOPMENT", Modifier.weight(1f))
+                            SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Camera-visible light", "IN DEVELOPMENT", onClick = { onOpenSource("Optical observation") }, modifier = Modifier.weight(1f))
+                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "IN DEVELOPMENT", onClick = { onOpenSource("Wi-Fi and Bluetooth") }, modifier = Modifier.weight(1f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "Receiver-dependent RF data", "HARDWARE REQUIRED", Modifier.weight(1f))
-                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV", "IN DEVELOPMENT", Modifier.weight(1f))
+                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "Receiver-dependent RF data", "HARDWARE REQUIRED", onClick = { onOpenSource("External SDR") }, modifier = Modifier.weight(1f))
+                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV", "IN DEVELOPMENT", onClick = onOpenSessions, modifier = Modifier.weight(1f))
                         }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT")
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Only observations exposed by Android", "IN DEVELOPMENT")
-                        SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED")
-                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and export", "IN DEVELOPMENT")
+                        SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT", onClick = { onOpenSource("Optical observation") })
+                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Only observations exposed by Android", "IN DEVELOPMENT", onClick = { onOpenSource("Wi-Fi and Bluetooth") })
+                        SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED", onClick = { onOpenSource("External SDR") })
+                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and export", "IN DEVELOPMENT", onClick = onOpenSessions)
                     }
                 }
             }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassButton("Explore sources", onExploreSources, Modifier.weight(1f))
-            GlassButton("Sessions", onOpenSessions, Modifier.weight(1f))
         }
 
         Text(
@@ -668,11 +652,26 @@ private fun spectrumStateFor(selectedSource: String): Triple<String, String, Str
     }
 
 @Composable
+private fun sourceVisualFor(selectedSource: String): Pair<InstrumentIconKind, Color> =
+    when (selectedSource) {
+        "Optical observation" -> InstrumentIconKind.Lens to Gold
+        "Wi-Fi and Bluetooth" -> InstrumentIconKind.Radio to Mint
+        "External SDR" -> InstrumentIconKind.Antenna to Amber
+        else -> InstrumentIconKind.Crosshair to Stone
+    }
+
+@Composable
 private fun SpectrumPanel(selectedSource: String) {
     val spectrumState = spectrumStateFor(selectedSource)
+    val (sourceIcon, sourceTint) = sourceVisualFor(selectedSource)
     GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 16.dp) {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconBadge(sourceIcon, sourceTint, 38.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Spectrum", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(spectrumState.second, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
@@ -748,6 +747,7 @@ private fun SourceSummary(
     tint: Color,
     detail: String,
     status: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -755,6 +755,8 @@ private fun SourceSummary(
             .clip(RoundedCornerShape(20.dp))
             .background(glassBrush(tint))
             .border(1.dp, glassBorder(tint), RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "$title. $detail. Status: $status. Inspect." }
             .padding(15.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -764,7 +766,10 @@ private fun SourceSummary(
                 modifier = Modifier.weight(1f))
         }
         Text(detail, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, minLines = 2)
-        Text(status, color = tint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(status, color = tint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            Text("INSPECT", color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        }
     }
 }
 

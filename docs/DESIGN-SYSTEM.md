@@ -120,3 +120,15 @@ foreground. In-app PNGs ship at 512px (>= xxxhdpi for their display sizes);
 1024px masters remain in `docs/brand/` and everything regenerates from
 `tools/make_zr4_launcher_assets.py`. Superseded `brand_mark`/`brand_lockup`
 resources were removed from `res/` so the APK ships no duplicate artwork.
+
+## Dashboard navigation model
+
+Overview has **one primary CTA** ("Configure observation source" in the
+status hero). The observation-channel cards are the navigation: tapping one
+selects that module and opens Sources (Sessions opens the session
+workspace), each card labelled with its status and an INSPECT affordance and
+exposed as a Button with a full spoken description. A previous duplicate
+button row (same destinations as the hero CTA and tab bar) and its now-dead
+secondary button component were removed — every visible control now does
+exactly one real thing. The spectrum header also carries the selected
+source's icon and module tint, so the pane's state is readable at a glance.
