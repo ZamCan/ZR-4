@@ -3,10 +3,8 @@ package com.zamcan.zr4.engine
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -88,7 +86,7 @@ object RfDspEngine {
         window: WindowFunction = WindowFunction.HANN,
         provenance: MeasurementProvenance? = null
     ): SpectrumFrame {
-        require(samples.size >= 2 && samples.size and (samples.size - 1) == 0) {
+        require(samples.size >= 2 && (samples.size and (samples.size - 1)) == 0) {
             "Sample count must be a power of two and at least 2."
         }
         require(sampleRateHz.isFinite() && sampleRateHz > 0.0) { "Sample rate must be finite and positive." }
@@ -138,7 +136,7 @@ object RfDspEngine {
      * Iterative radix-2 Cooley-Tukey FFT. Arrays are transformed in place.
      */
     internal fun fftInPlace(real: DoubleArray, imag: DoubleArray) {
-        require(real.size == imag.size && real.size >= 2 && real.size and (real.size - 1) == 0) {
+        require(real.size == imag.size && real.size >= 2 && (real.size and (real.size - 1)) == 0) {
             "FFT arrays must have equal power-of-two lengths >= 2."
         }
         val n = real.size
