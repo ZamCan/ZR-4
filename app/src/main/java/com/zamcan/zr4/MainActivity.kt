@@ -231,14 +231,15 @@ private fun OverviewScreen(
             BoxWithConstraints {
                 val wide = maxWidth >= 580.dp
                 if (wide) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SourceSummary("Optical", "Camera-visible light", "IN DEVELOPMENT", Modifier.weight(1f))
-                        SourceSummary("Wi-Fi / BLE", "Android API observations", "IN DEVELOPMENT", Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SourceSummary("External SDR", "Receiver-dependent RF data", "HARDWARE REQUIRED", Modifier.weight(1f))
-                        SourceSummary("Sessions", "Local records and CSV", "IN DEVELOPMENT", Modifier.weight(1f))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SourceSummary("Optical", "Camera-visible light", "IN DEVELOPMENT", Modifier.weight(1f))
+                            SourceSummary("Wi-Fi / BLE", "Android API observations", "IN DEVELOPMENT", Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SourceSummary("External SDR", "Receiver-dependent RF data", "HARDWARE REQUIRED", Modifier.weight(1f))
+                            SourceSummary("Sessions", "Local records and CSV", "IN DEVELOPMENT", Modifier.weight(1f))
+                        }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
