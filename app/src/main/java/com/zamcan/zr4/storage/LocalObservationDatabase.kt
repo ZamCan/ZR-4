@@ -324,6 +324,10 @@ class LocalObservationDatabase(context: Context) :
         if (value == null) putNull(key) else put(key, value)
     }
 
+    private fun ContentValues.putNullable(key: String, value: String?) {
+        if (value == null) putNull(key) else put(key, value)
+    }
+
     private fun Cursor.toSession() = ObservationSession(
         id = getString(0), title = getString(1), startedAtEpochMillis = getLong(2),
         state = ObservationSessionState.valueOf(getString(3)),
