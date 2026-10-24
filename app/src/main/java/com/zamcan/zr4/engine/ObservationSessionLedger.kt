@@ -221,6 +221,9 @@ class ObservationSessionLedger(session: ObservationSession) {
         require(run.observationId == finding.observationId) {
             "Finding observation id must match its analysis run's observation."
         }
+        require(run.outcome == AnalysisRunOutcome.SUCCESS) {
+            "Findings can only be attached to a successful analysis run."
+        }
         findings[finding.id] = finding.copy(
             evidence = finding.evidence.toList(),
             limitations = finding.limitations.toList()
