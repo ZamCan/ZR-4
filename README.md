@@ -21,6 +21,18 @@ ZR 4 is an offline-first native Android workspace being engineered for optical o
 4. **Measurement sessions:** planned local records with source metadata and CSV export. This is not considered implemented until storage, validation, and export tests pass.
 5. **Multi-device correlation:** a future consent-based way to compare recorded sessions. It does not increase receiver sensitivity or frequency coverage.
 
+## Current backend foundation
+
+- [x] Pure Kotlin radix-2 FFT and one-sided dBFS spectrum generation for normalized real samples
+- [x] Deterministic spectral peak candidate and block-RMS energy burst detectors
+- [x] Observation metadata, analysis-run records, and findings linked to their source observation
+- [x] In-memory session ledger with duplicate, provenance, validation, and closed-session guards
+- [x] Adapter that preserves detector evidence, limitations, algorithm version, parameters, and result outcome
+- [ ] Persistent on-device session storage and export are not implemented yet
+- [ ] Live Android radio acquisition and external SDR capture remain separate future integrations
+
+The in-memory ledger is a domain layer only; records do not survive process termination until the persistent storage stage is implemented. Detector outputs are candidates, not proof of emitter identity. Spectrum levels are dBFS unless a calibrated acquisition path explicitly establishes another unit.
+
 ## Current interface foundation
 
 - Public launcher name: **ZR 4**
