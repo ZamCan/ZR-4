@@ -12,18 +12,19 @@ no simulated reading is ever presented as a live measurement.
 | Instrument gold | `#D6B56D` | The single action/identity accent (brass-instrument analogue) |
 | Signal mint | `#6EE7B7` | Gold's cool complement — *system-ready / local* meaning only |
 | Amber | `#FFB86B` | Hardware-dependent modules (SDR) |
-| Violet (whisper) | `#C4B5FD` | Sessions/records only; completes a restrained triad at low alpha |
+| Warm stone | `#C9BBA6` | Neutral graphite-family tint for sessions/records surfaces |
 | Paper / muted sage | `#F2F5EC` / `#AFBDB0` | Text hierarchy on ink |
 
-Gold = act/identify, mint = ready/local, amber = hardware-gated, violet =
-records. A colour never changes meaning between screens.
+Gold = act/identify, mint = ready/local, amber = hardware-gated, stone =
+records. Warning/error hues are reserved for real states. A colour never
+changes meaning between screens, and there are no electric-blue gradients.
 
 ## Glass, without a blur library
 
 Blur backdrops are expensive and inconsistent on low-end devices, and this
 project builds offline (Termux). Glass is therefore layered translucency:
 
-1. A static **aurora canvas** (gold top-right, mint left, violet low).
+1. A static, very subtle aurora canvas (gold top-right, mint left, warm stone low).
 2. Panels: translucent vertical gradient (`glassBrush`) + 1 dp **gradient
    hairline** (`glassBorder`: white light-catch → accent) + soft coloured shadow.
 3. Floating chrome: the bottom navigation is an inset rounded glass pill;
@@ -31,10 +32,12 @@ project builds offline (Termux). Glass is therefore layered translucency:
 
 ## Navigation & iconography
 
-Unicode glyph medallions are the icon vocabulary — real text, no icon font,
-no drawables: `◎` Overview · `≋` Sources/Wi-Fi · `◉` Optical · `∿` SDR (sine wave) ·
-`☰` Sessions · `i` About · `◷` time · `⚙` configuration · `⇩` export.
-Glyphs were restricted to code points with reliable Android font coverage.
+Icons are precision **vector line icons drawn on Canvas** (`InstrumentIcon`:
+crosshair, waveform, layers, info, lens, radio arcs, antenna, clock, gear,
+export, check, lock, grid) — one stroke weight with round caps/joins. This
+module ships no icon library, and no dependency was added for icons. No
+emoji and no Unicode text glyphs are used as icons; every icon is paired with
+a text label, and interactive semantics live on the containing control.
 Each module keeps its own tint from the table above.
 
 ## Logo (PNG only)
@@ -50,7 +53,8 @@ and re-export the densities — never hand-edit a single density.
 
 ## Motion
 
-Section changes cross-fade (340 ms), navigation pills and card selection
-animate colour (240–260 ms), and the standby hero breathes with a slow glow.
-The pulse signifies *waiting* only; the spectrum still shows an empty grid
-and **NO DATA** — motion never fabricates a signal.
+Section changes cross-fade (340 ms); navigation pills and card selection
+animate colour (240–260 ms). There are no continuous decorative animations:
+the standby state is static, and the spectrum still shows an empty grid and
+**NO DATA** — motion never fabricates a signal. Each screen has one primary
+CTA (Overview: "Configure observation source"); other actions are secondary.
