@@ -167,7 +167,7 @@ class SdrReceiverRegistry {
             connection.close()
             throw IllegalArgumentException("Driver opened a different device than requested.")
         }
-        object : SdrReceiverConnection {
+        return object : SdrReceiverConnection {
             override val descriptor = connection.descriptor
             override val capabilities = connection.capabilities
             override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
