@@ -32,7 +32,7 @@ class SessionCsvExporterTest {
             ObservationSessionSnapshot(session, listOf(observation), emptyList(), emptyList())
         )
 
-        assertTrue(csv.startsWith("\"record_type\","))
+        assertTrue(csv.startsWith("record_type,session_id"))
         assertTrue(csv.contains("\"Lab, north wing\""))
         assertTrue(csv.contains("OBSERVATION,session-1"))
         assertTrue(csv.contains("ANDROID_WIFI"))
