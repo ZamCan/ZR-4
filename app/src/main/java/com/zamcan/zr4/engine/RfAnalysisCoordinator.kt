@@ -26,6 +26,23 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         return result
     }
 
+    fun analyzeBursts(
+        sessionId: String,
+        observation: ObservationRecord,
+        runId: String,
+        startedAtEpochMillis: Long,
+        completedAtEpochMillis: Long,
+        samples: DoubleArray,
+        config: BurstDetectionConfig = BurstDetectionConfig()
+    ): RfAnalysisPipelineResult {
+        requireStoredObservation(sessionId, observation)
+        val result = RfAnalysisPipeline.analyzeBursts(
+            observation, runId, startedAtEpochMillis, completedAtEpochMillis, samples, config
+        )
+        store.saveAnalysis(sessionId, result.provenance)
+        return result
+    }
+
     private fun requireStoredObservation(sessionId: String, observation: ObservationRecord) {
         val snapshot = store.loadSession(sessionId)
             ?: throw IllegalArgumentException("Session does not exist.")
