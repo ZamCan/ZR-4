@@ -31,7 +31,7 @@ Both paths report relative dBFS amplitudes, not calibrated dBm or dBm/Hz. Absolu
 
 ## Imported normalized sample files
 
-The pure Kotlin CSV importer accepts only two explicit headers: `sample` for normalized real samples, or `i,q` for normalized complex-I/Q pairs. Values must be finite decimal numbers within [-1, 1]. It applies a sample-count limit and rejects malformed rows. It does not infer sample rate, center frequency, hardware identity, calibration, or whether the data genuinely came from a receiver.
+The pure Kotlin CSV importer accepts only two explicit headers: `sample` for normalized real samples, or `i,q` for normalized complex-I/Q pairs. Values must be finite decimal numbers within [-1, 1]. It rejects malformed rows and limits imports to 8 MiB and 262,144 samples to keep memory use bounded on phones. It does not infer sample rate, center frequency, hardware identity, calibration, or whether the data genuinely came from a receiver.
 
 `ImportedSampleObservationFactory` creates metadata marked as imported and uncalibrated. A supplied calibration identifier is recorded as a user-provided label, not proof of verified calibration. The sample payload remains separate from the metadata database. The current importer is a parsing/factory layer; a Storage Access Framework file-picker flow and user-facing metadata form are still required for end-to-end import in the Android UI.
 
