@@ -27,7 +27,7 @@ object RfAnalysisPipeline {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         samples: DoubleArray,
         window: WindowFunction = WindowFunction.HANN,
         config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
@@ -55,12 +55,13 @@ object RfAnalysisPipeline {
             )
         )
         val detected = RfDetectionEngine.analyzeSpectrum(frame, config)
+        val completedAt = completedAtEpochMillis ?: System.currentTimeMillis()
         val trace = RfAnalysisProvenance.fromSpectrumResult(
             observationId = observation.id,
             runId = runId,
             algorithmVersion = SPECTRUM_ALGORITHM_VERSION,
             startedAtEpochMillis = startedAtEpochMillis,
-            completedAtEpochMillis = completedAtEpochMillis,
+            completedAtEpochMillis = completedAt,
             result = detected,
             parameters = mapOf(
                 "window" to window.name,
@@ -85,7 +86,7 @@ object RfAnalysisPipeline {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         iSamples: DoubleArray,
         qSamples: DoubleArray,
         window: WindowFunction = WindowFunction.HANN,
@@ -117,12 +118,13 @@ object RfAnalysisPipeline {
             )
         ).asDetectorFrame()
         val detected = RfDetectionEngine.analyzeSpectrum(frame, config)
+        val completedAt = completedAtEpochMillis ?: System.currentTimeMillis()
         val trace = RfAnalysisProvenance.fromSpectrumResult(
             observationId = observation.id,
             runId = runId,
             algorithmVersion = "zr4-complex-iq-spectrum-pipeline-1",
             startedAtEpochMillis = startedAtEpochMillis,
-            completedAtEpochMillis = completedAtEpochMillis,
+            completedAtEpochMillis = completedAt,
             result = detected,
             parameters = mapOf(
                 "window" to window.name,
@@ -148,7 +150,7 @@ object RfAnalysisPipeline {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         samples: DoubleArray,
         config: BurstDetectionConfig = BurstDetectionConfig()
     ): RfAnalysisPipelineResult {
@@ -156,12 +158,13 @@ object RfAnalysisPipeline {
         val sampleRate = observation.sampleRateHz
             ?: throw IllegalArgumentException("Burst analysis requires a recorded sample rate.")
         val detected = RfDetectionEngine.detectBursts(samples, sampleRate, config)
+        val completedAt = completedAtEpochMillis ?: System.currentTimeMillis()
         val trace = RfAnalysisProvenance.fromBurstResult(
             observationId = observation.id,
             runId = runId,
             algorithmVersion = BURST_ALGORITHM_VERSION,
             startedAtEpochMillis = startedAtEpochMillis,
-            completedAtEpochMillis = completedAtEpochMillis,
+            completedAtEpochMillis = completedAt,
             result = detected,
             parameters = mapOf(
                 "blockSize" to config.blockSize.toString(),
@@ -183,12 +186,12 @@ object RfAnalysisPipeline {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         samples: DoubleArray
     ) {
         require(runId.isNotBlank()) { "Analysis run id must not be blank." }
         require(startedAtEpochMillis > 0L) { "Analysis start time must be positive." }
-        require(completedAtEpochMillis >= startedAtEpochMillis) {
+        require(completedAtEpochMillis == null || completedAtEpochMillis >= startedAtEpochMillis) {
             "Analysis completion time must not precede its start time."
         }
         require(observation.sourceType in setOf(
