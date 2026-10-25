@@ -36,6 +36,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -72,6 +75,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.zamcan.zr4.engine.ObservationSession
+import com.zamcan.zr4.engine.ObservationRecord
+import com.zamcan.zr4.engine.ObservationRecordState
+import com.zamcan.zr4.engine.ObservationDataUnit
+import com.zamcan.zr4.engine.ObservationSourceType
 import com.zamcan.zr4.engine.ObservationSessionSnapshot
 import com.zamcan.zr4.engine.ObservationSessionState
 import com.zamcan.zr4.export.SessionCsvExporter
@@ -892,6 +899,8 @@ private fun SessionsScreen() {
     var selectedSnapshot by remember { mutableStateOf<ObservationSessionSnapshot?>(null) }
     var feedback by remember { mutableStateOf("Loading local session records…") }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
 
     val createCsvDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -992,6 +1001,41 @@ private fun SessionsScreen() {
         }
     }
 
+    fun saveFieldNote() {
+        val target = selectedSnapshot?.session
+        val note = noteText.trim()
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Select an open session before adding a field note."
+            showNoteDialog = false
+            return
+        }
+        if (note.isBlank()) {
+            feedback = "Enter a note before saving."
+            return
+        }
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val observation = ObservationRecord(
+                id = UUID.randomUUID().toString(),
+                sourceType = ObservationSourceType.MANUAL_NOTE,
+                capturedAtEpochMillis = now,
+                unit = ObservationDataUnit.UNKNOWN,
+                state = ObservationRecordState.INCOMPLETE,
+                notes = listOf("FIELD NOTE — NOT A MEASUREMENT", note)
+            )
+            try {
+                withContext(Dispatchers.IO) { database.addObservation(target.id, observation) }
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                noteText = ""
+                showNoteDialog = false
+                feedback = "Field note saved. It is explicitly not a sensor measurement."
+            } catch (error: Exception) {
+                feedback = "Could not save field note: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
     fun exportSession(sessionId: String) {
         scope.launch {
             try {
@@ -1084,6 +1128,13 @@ private fun SessionsScreen() {
                     MetricPill("Analysis runs", snapshot.analysisRuns.size.toString())
                     MetricPill("Findings", snapshot.findings.size.toString())
                 }
+                if (snapshot.session.state == ObservationSessionState.OPEN) {
+                    Spacer(Modifier.height(10.dp))
+                    GoldButton("＋  Add field note (not a measurement)", {
+                        noteText = ""
+                        showNoteDialog = true
+                    }, Modifier.fillMaxWidth())
+                }
                 if (snapshot.observations.isEmpty() && snapshot.findings.isEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text("This session has metadata only. No measurement or finding has been fabricated.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
@@ -1113,6 +1164,33 @@ private fun SessionsScreen() {
         InfoRow("Analysis provenance", "Algorithm, version, parameters, outcome, evidence and limitations", InstrumentIconKind.Check, Gold)
         InfoRow("CSV export", "Uses Android's document picker so the user chooses where the CSV file is saved", InstrumentIconKind.Export, Stone)
         Text("Raw IQ/sample payloads are not stored in this database. Export includes persisted metadata and traceable findings only.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+
+    if (showNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoteDialog = false },
+            title = { Text("Add field note") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This saves your own note as incomplete metadata. It does not create a sensor reading or RF measurement.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Observation note") },
+                        placeholder = { Text("Describe what you observed…") },
+                        minLines = 3,
+                        maxLines = 6,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveFieldNote) { Text("Save note") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoteDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
