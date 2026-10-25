@@ -20,7 +20,8 @@ class RfAnalysisPipelineTest {
         assertEquals(AnalysisRunOutcome.SUCCESS, result.provenance.run.outcome)
         assertTrue(result.provenance.findings.isNotEmpty())
         assertTrue(result.provenance.findings.all { it.analysisRunId == "run-spectrum" })
-        assertTrue(result.provenance.run.parameters["frequencyInterpretation"]!!.contains("complex-IQ"))
+        assertTrue(result.provenance.run.parameters["frequencyInterpretation"]!!.contains("baseband offsets"))
+        assertTrue(!result.provenance.run.parameters["frequencyInterpretation"]!!.contains("complex-IQ centered"))
     }
 
     @Test fun flatInputIsRecordedAsNoFindings() {
