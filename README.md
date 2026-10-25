@@ -47,7 +47,7 @@ Raw IQ/sample payloads are intentionally not stored in the metadata database. Un
 - Source selection and navigation are interface actions only; selecting a module does not start acquisition
 - Session workspace uses SQLite for persisted session workflows and offers CSV export; no placeholder measurements are shown
 
-See [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) and [docs/brand/](docs/brand/).
+See [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) and [docs/brand/](docs/brand/). See [docs/ANALYSIS-ARCHITECTURE.md](docs/ANALYSIS-ARCHITECTURE.md) for the analysis-to-storage pipeline and acquisition boundaries.
 
 ## Build and tests
 
