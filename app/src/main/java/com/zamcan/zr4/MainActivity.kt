@@ -1045,7 +1045,6 @@ private fun SessionsScreen() {
                         observation = observation,
                         runId = UUID.randomUUID().toString(),
                         startedAtEpochMillis = analysisStarted,
-                        completedAtEpochMillis = System.currentTimeMillis(),
                         payload = payload,
                         window = WindowFunction.HANN,
                         config = AdaptiveDetectionConfig()
