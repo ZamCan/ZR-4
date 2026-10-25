@@ -123,6 +123,24 @@ class LocalObservationDatabaseTest {
     }
 
     @Test
+    fun testUnsuccessfulAnalysisCannotCarryFindings() {
+        store.createSession(session())
+        store.addObservation("session-1", observation())
+        try {
+            store.saveAnalysis(
+                "session-1",
+                ProvenancedAnalysis(run().copy(outcome = AnalysisRunOutcome.FAILED), listOf(finding()))
+            )
+            fail("Failed analysis must not carry findings")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message!!.contains("Only successful"))
+        }
+        val snapshot = store.loadSession("session-1")!!
+        assertTrue(snapshot.analysisRuns.isEmpty())
+        assertTrue(snapshot.findings.isEmpty())
+    }
+
+    @Test
     fun testMissingSessionLoadsAsNull() {
         assertNull(store.loadSession("does-not-exist"))
     }
