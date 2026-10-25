@@ -8,11 +8,10 @@ package com.zamcan.zr4.engine
  * ObservationRecord from a real/imported source and separately persist the
  * returned provenance transactionally.
  *
- * IMPORTANT: this path is for real-valued samples, not complex SDR I/Q. The
- * spectrum is one-sided and its frequency axis is expressed as baseband offsets
- * from zero. A tuned center frequency is retained in observation metadata but
- * is not added to these bins; doing so would incorrectly imply a centered-I/Q
- * spectrum. A dedicated complex-I/Q FFT path is required for centered SDR plots.
+ * The real-sample method produces a one-sided spectrum in baseband offsets.
+ * The separate complex-I/Q method produces a two-sided centered RF spectrum.
+ * Neither method acquires hardware, calibrates absolute RF power, or identifies
+ * a transmitter; callers supply samples and persist provenance separately.
  */
 data class RfAnalysisPipelineResult(
     val spectrumFrame: SpectrumFrame?,
