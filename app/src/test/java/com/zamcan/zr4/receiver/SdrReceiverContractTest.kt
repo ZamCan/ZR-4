@@ -127,7 +127,12 @@ class SdrReceiverContractTest {
             require(deviceId == descriptor.deviceId)
             return object : SdrReceiverConnection {
                 override val descriptor = this@FakeDriver.descriptor
-                override val capabilities = testCapabilities()
+                override val capabilities = SdrReceiverCapabilities(
+                    minimumFrequencyHz = 24_000_000.0,
+                    maximumFrequencyHz = 1_700_000_000.0,
+                    supportedSampleRatesHz = setOf(2_000_000L, 2_400_000L),
+                    supportsComplexIq = true
+                )
                 override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
                     capabilities.validate(request)
                     return NormalizedComplexIqCapture(
