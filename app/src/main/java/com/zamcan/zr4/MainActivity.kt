@@ -1059,7 +1059,10 @@ private fun SessionsScreen() {
                 showImportDialog = false
             } catch (error: Exception) {
                 selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
-                feedback = "Import record saved, but analysis did not complete: ${error.message ?: "unknown error"}"
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                pendingImportPayload = null
+                showImportDialog = false
+                feedback = "Import record may be saved, but analysis did not complete: ${error.message ?: "unknown error"}. Review the session before retrying to avoid duplicate imports."
             }
         }
     }
