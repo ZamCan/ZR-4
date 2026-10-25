@@ -33,7 +33,8 @@ class RfAnalysisPipelineTest {
             startedAtEpochMillis = started,
             samples = DoubleArray(128)
         )
-        assertTrue(result.provenance.run.completedAtEpochMillis >= started)
+        assertNotNull(result.provenance.run.completedAtEpochMillis)
+        assertTrue(result.provenance.run.completedAtEpochMillis!! >= started)
     }
 
     @Test fun flatInputIsRecordedAsNoFindings() {
