@@ -61,3 +61,10 @@ GitHub Actions has successfully assembled the debug APK and run both JVM tests a
 - USB SDR discovery, acquisition, and a verified raw-sample-to-analysis UI workflow.
 
 Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition. Android Wi-Fi scan metadata is not passed to the normalized-sample analysis pipeline.
+
+
+## RTL-TCP network acquisition
+
+The optional network driver connects to a user-configured rtl_tcp endpoint (default port 1234), verifies the 12-byte `RTL0` handshake, issues big-endian sample-rate/frequency/gain commands, and reads unsigned 8-bit interleaved I/Q bytes. It converts each channel to normalized [-1, 1] values and passes the capture through the SDR analysis coordinator. A local protocol-server test verifies handshake, commands, conversion, and error handling without claiming that a physical receiver was tested.
+
+The basic rtl_tcp stream has no per-sample timestamps and no portable command acknowledgement. Recorded capture times are handset-side read times, and requested tuner settings are not independently confirmed by this protocol. The configured endpoint is not automatic device discovery. Network access requires the Android INTERNET permission. Direct USB acquisition and physical RTL-SDR validation remain outstanding.
