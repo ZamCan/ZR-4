@@ -82,6 +82,13 @@ import com.zamcan.zr4.engine.ObservationSessionSnapshot
 import com.zamcan.zr4.engine.ObservationSessionState
 import com.zamcan.zr4.export.SessionCsvExporter
 import com.zamcan.zr4.storage.LocalObservationDatabase
+import com.zamcan.zr4.engine.RfAnalysisCoordinator
+import com.zamcan.zr4.engine.AdaptiveDetectionConfig
+import com.zamcan.zr4.engine.WindowFunction
+import com.zamcan.zr4.importer.ImportedSampleMetadata
+import com.zamcan.zr4.importer.ImportedSampleObservationFactory
+import com.zamcan.zr4.importer.NormalizedSampleCsvImporter
+import com.zamcan.zr4.importer.NormalizedSamplePayload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,6 +96,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.io.ByteArrayOutputStream
 
 /**
  * ZR 4 - ZamCan RF Observatory
@@ -898,6 +906,11 @@ private fun SessionsScreen() {
     var selectedSnapshot by remember { mutableStateOf<ObservationSessionSnapshot?>(null) }
     var feedback by remember { mutableStateOf("Loading local session records…") }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var pendingImportPayload by remember { mutableStateOf<NormalizedSamplePayload?>(null) }
+    var pendingImportName by remember { mutableStateOf("sample.csv") }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var importSampleRate by remember { mutableStateOf("48000") }
+    var importCenterFrequency by remember { mutableStateOf("") }
     var showNoteDialog by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
 
@@ -922,6 +935,140 @@ private fun SessionsScreen() {
                 } finally {
                     pendingCsv = null
                 }
+            }
+        }
+    }
+
+    val openSampleDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) {
+            feedback = "Sample import cancelled."
+        } else {
+            scope.launch {
+                try {
+                    val csv = withContext(Dispatchers.IO) {
+                        val input = requireNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Android could not open the selected file."
+                        }
+                        input.use { stream ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = stream.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= NormalizedSampleCsvImporter.MAX_CSV_CHARACTERS) {
+                                    "CSV file exceeds the supported 8 MiB import limit."
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toString("UTF-8")
+                        }
+                    }
+                    val payload = withContext(Dispatchers.Default) {
+                        NormalizedSampleCsvImporter.parse(csv)
+                    }
+                    require(payload.sampleCount >= 2 && Integer.bitCount(payload.sampleCount) == 1) {
+                        "Sample count must be a power of two (2 or more) for this FFT engine."
+                    }
+                    pendingImportPayload = payload
+                    pendingImportName = uri.lastPathSegment?.substringAfterLast('/')?.take(80) ?: "sample.csv"
+                    showImportDialog = true
+                    feedback = "Sample file parsed. Confirm its acquisition metadata before analysis."
+                } catch (error: Exception) {
+                    pendingImportPayload = null
+                    feedback = "Sample import failed: ${error.message ?: "unknown error"}"
+                }
+            }
+        }
+    }
+
+    fun saveAndAnalyzeImport() {
+        val target = selectedSnapshot?.session
+        val payload = pendingImportPayload
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before importing samples."
+            showImportDialog = false
+            return
+        }
+        if (payload == null) {
+            feedback = "Select a sample CSV file first."
+            showImportDialog = false
+            return
+        }
+        val sampleRate = importSampleRate.trim().toDoubleOrNull()
+        val centerText = importCenterFrequency.trim()
+        val centerFrequency = if (centerText.isEmpty()) null else centerText.toDoubleOrNull()
+        if (sampleRate == null || !sampleRate.isFinite() || sampleRate <= 0.0) {
+            feedback = "Enter a valid positive sample rate in Hz."
+            return
+        }
+        if (centerText.isNotEmpty() && (centerFrequency == null || !centerFrequency.isFinite() || centerFrequency < 0.0)) {
+            feedback = "Center frequency must be a valid non-negative value in Hz."
+            return
+        }
+        if (payload is NormalizedSamplePayload.ComplexIq && centerFrequency == null) {
+            feedback = "Complex I/Q files require an explicit center frequency in Hz."
+            return
+        }
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val observationId = UUID.randomUUID().toString()
+            val observation = try {
+                ImportedSampleObservationFactory.create(
+                    payload,
+                    ImportedSampleMetadata(
+                        observationId = observationId,
+                        capturedAtEpochMillis = now,
+                        sampleRateHz = sampleRate,
+                        centerFrequencyHz = centerFrequency
+                    )
+                ).copy(
+                    notes = ImportedSampleObservationFactory.create(
+                        payload,
+                        ImportedSampleMetadata(
+                            observationId = observationId,
+                            capturedAtEpochMillis = now,
+                            sampleRateHz = sampleRate,
+                            centerFrequencyHz = centerFrequency
+                        )
+                    ).notes + listOf(
+                        "Imported file: $pendingImportName",
+                        "Timestamp records import time; original source capture time was not supplied."
+                    )
+                )
+            } catch (error: Exception) {
+                feedback = "Import metadata is invalid: ${error.message ?: "unknown error"}"
+                return@launch
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    database.addObservation(target.id, observation)
+                }
+                val analysisStarted = System.currentTimeMillis()
+                val result = withContext(Dispatchers.Default) {
+                    RfAnalysisCoordinator(database).analyzeImportedSpectrum(
+                        sessionId = target.id,
+                        observation = observation,
+                        runId = UUID.randomUUID().toString(),
+                        startedAtEpochMillis = analysisStarted,
+                        completedAtEpochMillis = System.currentTimeMillis(),
+                        payload = payload,
+                        window = WindowFunction.HANN,
+                        config = AdaptiveDetectionConfig()
+                    )
+                }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                feedback = "Imported and analysed ${payload.sampleCount} samples. Outcome: ${result.provenance.run.outcome}. Levels are relative dBFS, not calibrated power."
+                pendingImportPayload = null
+                showImportDialog = false
+            } catch (error: Exception) {
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                feedback = "Import record saved, but analysis did not complete: ${error.message ?: "unknown error"}"
             }
         }
     }
@@ -1068,6 +1215,16 @@ private fun SessionsScreen() {
             Spacer(Modifier.height(14.dp))
             GoldButton("＋  Start observation session", ::startSession, Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
+            GlassButton(
+                "Import normalized sample CSV",
+                { openSampleDocument.launch(arrayOf("text/*", "application/*")) },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Accepts normalized real samples (sample) or complex I/Q pairs (i,q). The file must contain finite values in [-1, 1], with a power-of-two sample count. Import does not mean live capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
             Text(feedback, color = if (feedback.contains("failed", ignoreCase = true) || feedback.contains("could not", ignoreCase = true)) Amber else Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
 
@@ -1163,6 +1320,51 @@ private fun SessionsScreen() {
         InfoRow("Analysis provenance", "Algorithm, version, parameters, outcome, evidence and limitations", InstrumentIconKind.Check, Gold)
         InfoRow("CSV export", "Uses Android's document picker so the user chooses where the CSV file is saved", InstrumentIconKind.Export, Stone)
         Text("Raw IQ/sample payloads are not stored in this database. Export includes persisted metadata and traceable findings only.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportDialog = false
+                pendingImportPayload = null
+            },
+            title = { Text("Confirm sample metadata") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "File: $pendingImportName · ${pendingImportPayload?.sampleCount ?: 0} samples. Enter metadata from the original capture/export settings; it cannot be inferred from sample values.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+                    )
+                    OutlinedTextField(
+                        value = importSampleRate,
+                        onValueChange = { importSampleRate = it },
+                        label = { Text("Sample rate (Hz) *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = importCenterFrequency,
+                        onValueChange = { importCenterFrequency = it },
+                        label = { Text("Center frequency (Hz; required for I/Q)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "The saved timestamp will be the import time because this flow does not yet collect the original capture timestamp. Results are dBFS, not calibrated dBm.",
+                        color = Amber, fontSize = 11.sp, lineHeight = 16.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveAndAnalyzeImport) { Text("Import and analyse") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportDialog = false
+                    pendingImportPayload = null
+                }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showNoteDialog) {
