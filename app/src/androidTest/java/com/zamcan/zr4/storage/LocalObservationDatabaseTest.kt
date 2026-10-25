@@ -1,6 +1,17 @@
 package com.zamcan.zr4.storage
 
-import android.test.AndroidTestCase
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
 import com.zamcan.zr4.engine.AnalysisRunOutcome
 import com.zamcan.zr4.engine.AnalysisRunRecord
 import com.zamcan.zr4.engine.ObservationDataUnit
@@ -12,21 +23,24 @@ import com.zamcan.zr4.engine.ObservationSourceType
 import com.zamcan.zr4.engine.TraceableFinding
 
 /** Runs on an Android device/emulator because SQLiteOpenHelper uses the Android framework. */
-class LocalObservationDatabaseTest : AndroidTestCase() {
+@RunWith(AndroidJUnit4::class)
+class LocalObservationDatabaseTest {
+    private val context: Context = ApplicationProvider.getApplicationContext()
     private lateinit var store: LocalObservationDatabase
 
-    override fun setUp() {
-        super.setUp()
+    @Before
+    fun setUp() {
         context.deleteDatabase(LocalObservationDatabase.DATABASE_NAME)
         store = LocalObservationDatabase(context)
     }
 
-    override fun tearDown() {
+    @After
+    fun tearDown() {
         store.close()
         context.deleteDatabase(LocalObservationDatabase.DATABASE_NAME)
-        super.tearDown()
     }
 
+    @Test
     fun testSessionAndTraceableRecordsSurviveDatabaseReopen() {
         store.createSession(session())
         store.addObservation("session-1", observation())
@@ -46,6 +60,7 @@ class LocalObservationDatabaseTest : AndroidTestCase() {
         assertEquals("run-1", snapshot.findings.single().analysisRunId)
     }
 
+    @Test
     fun testRejectsFindingLinkedToDifferentObservation() {
         store.createSession(session())
         store.addObservation("session-1", observation())
@@ -60,6 +75,7 @@ class LocalObservationDatabaseTest : AndroidTestCase() {
         }
     }
 
+    @Test
     fun testClosedSessionRejectsFurtherWritesAndCanBeLoaded() {
         store.createSession(session())
         val closed = store.closeSession("session-1", 1_800_000_003_000L)
@@ -73,6 +89,7 @@ class LocalObservationDatabaseTest : AndroidTestCase() {
         assertEquals(ObservationSessionState.CLOSED, store.loadSession("session-1")!!.session.state)
     }
 
+    @Test
     fun testMissingSessionLoadsAsNull() {
         assertNull(store.loadSession("does-not-exist"))
     }
