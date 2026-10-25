@@ -1017,24 +1017,15 @@ private fun SessionsScreen() {
             val now = System.currentTimeMillis()
             val observationId = UUID.randomUUID().toString()
             val observation = try {
-                ImportedSampleObservationFactory.create(
-                    payload,
-                    ImportedSampleMetadata(
-                        observationId = observationId,
-                        capturedAtEpochMillis = now,
-                        sampleRateHz = sampleRate,
-                        centerFrequencyHz = centerFrequency
-                    )
-                ).copy(
-                    notes = ImportedSampleObservationFactory.create(
-                        payload,
-                        ImportedSampleMetadata(
-                            observationId = observationId,
-                            capturedAtEpochMillis = now,
-                            sampleRateHz = sampleRate,
-                            centerFrequencyHz = centerFrequency
-                        )
-                    ).notes + listOf(
+                val metadata = ImportedSampleMetadata(
+                    observationId = observationId,
+                    capturedAtEpochMillis = now,
+                    sampleRateHz = sampleRate,
+                    centerFrequencyHz = centerFrequency
+                )
+                val imported = ImportedSampleObservationFactory.create(payload, metadata)
+                imported.copy(
+                    notes = imported.notes + listOf(
                         "Imported file: $pendingImportName",
                         "Timestamp records import time; original source capture time was not supplied."
                     )
