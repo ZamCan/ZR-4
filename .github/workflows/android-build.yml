@@ -18,6 +18,7 @@ jobs:
   verify-android:
     name: Build and verify Android
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -37,6 +38,14 @@ jobs:
       - name: Run JVM unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zr4-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Run Android instrumentation tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -45,13 +54,5 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          emulator-boot-timeout: 900
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: zr4-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
+          emulator-boot-timeout: 600
+          script: ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest
