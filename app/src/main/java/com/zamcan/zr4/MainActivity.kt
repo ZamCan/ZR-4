@@ -1,7 +1,6 @@
 package com.zamcan.zr4
 
 import android.os.Bundle
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
