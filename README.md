@@ -18,7 +18,7 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 1. **Optical observation:** camera-assisted visible-indicator, brightness, and blink-timing analysis within camera sampling limits. A camera does not detect RF.
 2. **Built-in radios:** only observations exposed by Android Wi-Fi and Bluetooth APIs; not a calibrated continuous spectrum.
 3. **External SDR:** spectrum/IQ measurements only when a compatible receiver and validated acquisition pipeline are available.
-4. **Measurement sessions:** create, inspect, and close local SQLite sessions; inspect stored observations and findings; export session metadata through Android's document picker as CSV. The database stores metadata, not raw IQ/sample payloads.
+4. **Measurement sessions:** create, inspect, and close local SQLite sessions; add explicitly labelled user field notes (never represented as measurements); inspect stored observations and findings; export session metadata through Android's document picker as CSV. The database stores metadata, not raw IQ/sample payloads.
 5. **Multi-device correlation:** future consent-based comparison of recorded sessions; it does not increase receiver sensitivity or frequency coverage.
 
 ## Backend foundation
@@ -32,7 +32,7 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 - [x] Transactional writes, foreign keys, session-state checks, and deterministic metadata serialization
 - [x] Android instrumentation tests authored for database reopen, metadata serialization, provenance checks, closed sessions, and missing sessions
 - [ ] Successful local compile and execution of Android instrumentation tests still required
-- [x] Compose session workspace wired to SQLite for create/list/inspect/close flows
+- [x] Compose session workspace wired to SQLite for create/list/inspect/close flows and non-measurement field notes
 - [x] CSV metadata exporter and document-picker save flow, with JVM tests authored
 - [ ] Live Android radio acquisition and external SDR capture remain future integrations
 
