@@ -55,6 +55,20 @@ class SdrReceiverContractTest {
     }
 
     @Test
+    fun capabilitiesRejectCenterFrequencyBelowHalfSampleRate() {
+        val caps = SdrReceiverCapabilities(
+            minimumFrequencyHz = 0.0,
+            maximumFrequencyHz = 100_000_000.0,
+            supportedSampleRatesHz = setOf(2_000_000L),
+            supportsComplexIq = true
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            caps.validate(SdrCaptureRequest(999_999.0, 2_000_000, 4096))
+        }
+        caps.validate(SdrCaptureRequest(1_000_000.0, 2_000_000, 4096))
+    }
+
+    @Test
     fun emptyRegistryReportsNoDriversAndDoesNotInventDevices() {
         val registry = SdrReceiverRegistry()
         assertTrue(registry.registeredDriverIds().isEmpty())

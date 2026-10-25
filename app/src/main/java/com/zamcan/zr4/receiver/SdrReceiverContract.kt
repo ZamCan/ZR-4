@@ -41,6 +41,9 @@ data class SdrReceiverCapabilities(
         require(request.centerFrequencyHz in minimumFrequencyHz..maximumFrequencyHz) {
             "Requested center frequency is outside the receiver's declared range."
         }
+        require(request.centerFrequencyHz >= request.sampleRateHz / 2.0) {
+            "Center frequency must be at least half the sample rate so represented RF bins remain non-negative."
+        }
         require(request.sampleRateHz in supportedSampleRatesHz) {
             "Requested sample rate is not in the receiver's declared supported-rate set."
         }
