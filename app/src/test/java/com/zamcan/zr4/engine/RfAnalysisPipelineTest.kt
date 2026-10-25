@@ -18,10 +18,22 @@ class RfAnalysisPipelineTest {
         assertNotNull(result.spectrumFrame)
         assertEquals(n / 2 + 1, result.spectrumFrame!!.amplitudeDbfs.size)
         assertEquals(AnalysisRunOutcome.SUCCESS, result.provenance.run.outcome)
+        assertEquals(1800000002100L, result.provenance.run.completedAtEpochMillis)
         assertTrue(result.provenance.findings.isNotEmpty())
         assertTrue(result.provenance.findings.all { it.analysisRunId == "run-spectrum" })
         assertTrue(result.provenance.run.parameters["frequencyInterpretation"]!!.contains("baseband offsets"))
         assertTrue(!result.provenance.run.parameters["frequencyInterpretation"]!!.contains("complex-IQ centered"))
+    }
+
+    @Test fun omittedCompletionTimestampIsRecordedAfterAnalysisStarts() {
+        val started = System.currentTimeMillis()
+        val result = RfAnalysisPipeline.analyzeSpectrum(
+            observation(128, 2048.0),
+            runId = "run-clock",
+            startedAtEpochMillis = started,
+            samples = DoubleArray(128)
+        )
+        assertTrue(result.provenance.run.completedAtEpochMillis >= started)
     }
 
     @Test fun flatInputIsRecordedAsNoFindings() {
