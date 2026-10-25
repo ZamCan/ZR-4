@@ -82,6 +82,67 @@ object RfAnalysisPipeline {
         )
     }
 
+    fun analyzeComplexIq(
+        observation: ObservationRecord,
+        runId: String,
+        startedAtEpochMillis: Long,
+        completedAtEpochMillis: Long,
+        iSamples: DoubleArray,
+        qSamples: DoubleArray,
+        window: WindowFunction = WindowFunction.HANN,
+        config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
+    ): RfAnalysisPipelineResult {
+        require(iSamples.size == qSamples.size) { "I and Q sample counts must match." }
+        validateInput(observation, runId, startedAtEpochMillis, completedAtEpochMillis, iSamples)
+        require(qSamples.all { it.isFinite() }) { "Q samples must not contain NaN or infinity." }
+        val sampleRate = observation.sampleRateHz
+            ?: throw IllegalArgumentException("Complex-I/Q analysis requires a recorded sample rate.")
+        val centerFrequency = observation.centerFrequencyHz
+            ?: throw IllegalArgumentException("Complex-I/Q analysis requires a recorded center frequency.")
+        val frame = ComplexIqSpectrumEngine.analyze(
+            iSamples = iSamples,
+            qSamples = qSamples,
+            sampleRateHz = sampleRate,
+            centerFrequencyHz = centerFrequency,
+            window = window,
+            provenance = MeasurementProvenance(
+                sourceId = observation.id,
+                capturedAtEpochMillis = observation.capturedAtEpochMillis,
+                sampleRateHz = sampleRate,
+                centerFrequencyHz = centerFrequency,
+                hardwareDescription = observation.hardwareDescription,
+                calibrationId = observation.calibrationId,
+                quality = if (observation.state == ObservationRecordState.UNCALIBRATED) {
+                    ObservationQuality.INCOMPLETE
+                } else ObservationQuality.VALID
+            )
+        ).asDetectorFrame()
+        val detected = RfDetectionEngine.analyzeSpectrum(frame, config)
+        val trace = RfAnalysisProvenance.fromSpectrumResult(
+            observationId = observation.id,
+            runId = runId,
+            algorithmVersion = "zr4-complex-iq-spectrum-pipeline-1",
+            startedAtEpochMillis = startedAtEpochMillis,
+            completedAtEpochMillis = completedAtEpochMillis,
+            result = detected,
+            parameters = mapOf(
+                "window" to window.name,
+                "minimumPeakExcessDb" to config.minimumPeakExcessDb.toString(),
+                "madMultiplier" to config.madMultiplier.toString(),
+                "sampleRateHz" to sampleRate.toString(),
+                "centerFrequencyHz" to centerFrequency.toString(),
+                "sampleCount" to iSamples.size.toString(),
+                "frequencyInterpretation" to "two-sided centered complex-I/Q RF bins",
+                "calibration" to (observation.calibrationId ?: "not provided")
+            )
+        )
+        return RfAnalysisPipelineResult(
+            spectrumFrame = frame,
+            detectorSummary = "Centered complex-I/Q spectrum; peak candidates are not transmitter or protocol identification.",
+            provenance = trace
+        )
+    }
+
     fun analyzeBursts(
         observation: ObservationRecord,
         runId: String,
