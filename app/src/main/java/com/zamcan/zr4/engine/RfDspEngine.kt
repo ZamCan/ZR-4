@@ -92,6 +92,9 @@ object RfDspEngine {
         require(sampleRateHz.isFinite() && sampleRateHz > 0.0) { "Sample rate must be finite and positive." }
         require(centerFrequencyHz == null || centerFrequencyHz.isFinite()) { "Center frequency must be finite." }
         require(samples.all { it.isFinite() }) { "Samples must not contain NaN or infinity." }
+        require(samples.all { it in -1.0..1.0 }) {
+            "Samples must be normalized to the supported range [-1, 1] for dBFS analysis."
+        }
 
         val n = samples.size
         val real = samples.copyOf()

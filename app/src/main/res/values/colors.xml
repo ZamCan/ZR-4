@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive-icon backdrop: deep observatory ink (matches the glass theme). -->
+    <color name="ic_launcher_background">#050D08</color>
+    <color name="window_background">#050D08</color>
+</resources>
