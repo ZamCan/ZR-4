@@ -43,11 +43,7 @@ object ImportedSampleObservationFactory {
             sourceType = ObservationSourceType.IMPORTED_FILE,
             capturedAtEpochMillis = metadata.capturedAtEpochMillis,
             unit = ObservationDataUnit.NORMALIZED_AMPLITUDE,
-            state = if (metadata.calibrationId.isNullOrBlank()) {
-                ObservationRecordState.UNCALIBRATED
-            } else {
-                ObservationRecordState.VALID
-            },
+            state = ObservationRecordState.UNCALIBRATED,
             centerFrequencyHz = metadata.centerFrequencyHz,
             sampleRateHz = metadata.sampleRateHz,
             sampleCount = payload.sampleCount,
