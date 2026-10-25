@@ -12,6 +12,7 @@ android {
         applicationId = "com.zamcan.zr4"
         minSdk = 26
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 1
         versionName = "0.1.0"
     }
