@@ -89,11 +89,15 @@ import com.zamcan.zr4.storage.LocalObservationDatabase
 import com.zamcan.zr4.engine.RfAnalysisCoordinator
 import com.zamcan.zr4.engine.AdaptiveDetectionConfig
 import com.zamcan.zr4.engine.WindowFunction
+import com.zamcan.zr4.engine.SpectrumFrame
 import com.zamcan.zr4.importer.ImportedSampleMetadata
 import com.zamcan.zr4.importer.ImportedSampleObservationFactory
 import com.zamcan.zr4.importer.NormalizedSampleCsvImporter
 import com.zamcan.zr4.importer.NormalizedSamplePayload
 import com.zamcan.zr4.radio.AndroidRadioObservationCollector
+import com.zamcan.zr4.receiver.RtlTcpNetworkDriver
+import com.zamcan.zr4.receiver.SdrCaptureRequest
+import com.zamcan.zr4.receiver.SdrReceiverRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -195,6 +199,7 @@ class MainActivity : ComponentActivity() {
 private fun Zr4App() {
     var section by remember { mutableStateOf(AppSection.Overview) }
     var selectedSource by remember { mutableStateOf("External SDR") }
+    var latestSpectrumFrame by remember { mutableStateOf<SpectrumFrame?>(null) }
 
     Box(Modifier.fillMaxSize().background(InkDeep)) {
         AuroraBackground()
@@ -239,6 +244,7 @@ private fun Zr4App() {
                     when (current) {
                         AppSection.Overview -> OverviewScreen(
                             selectedSource = selectedSource,
+                            spectrumFrame = latestSpectrumFrame,
                             onExploreSources = { section = AppSection.Sources },
                             onOpenSessions = { section = AppSection.Sessions },
                         )
@@ -246,7 +252,9 @@ private fun Zr4App() {
                             selectedSource = selectedSource,
                             onSelectSource = { selectedSource = it },
                         )
-                        AppSection.Sessions -> SessionsScreen()
+                        AppSection.Sessions -> SessionsScreen(
+                            onSpectrumFrame = { latestSpectrumFrame = it }
+                        )
                         AppSection.About -> AboutScreen()
                     }
                 }
@@ -578,6 +586,7 @@ private fun InfoRow(label: String, value: String, icon: InstrumentIconKind = Ins
 @Composable
 private fun OverviewScreen(
     selectedSource: String,
+    spectrumFrame: SpectrumFrame?,
     onExploreSources: () -> Unit,
     onOpenSessions: () -> Unit,
 ) {
@@ -595,8 +604,8 @@ private fun OverviewScreen(
         StatusHero(onExploreSources)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("SPECTRUM", spectrumStateFor(selectedSource).first)
-            SpectrumPanel(selectedSource)
+            SectionHeading("SPECTRUM", if (spectrumFrame == null) spectrumStateFor(selectedSource).first else "ANALYSED INPUT")
+            SpectrumPanel(selectedSource, spectrumFrame)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -606,18 +615,18 @@ private fun OverviewScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Camera-visible light", "IN DEVELOPMENT", Modifier.weight(1f))
-                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "IN DEVELOPMENT", Modifier.weight(1f))
+                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "OS-LIMITED", Modifier.weight(1f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "Receiver-dependent RF data", "HARDWARE REQUIRED", Modifier.weight(1f))
+                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "RTL-TCP network I/Q; USB pending", "NETWORK / HARDWARE", Modifier.weight(1f))
                             SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV export", "STORAGE READY", Modifier.weight(1f))
                         }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT")
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi scan snapshots; BLE capture still pending", "WI-FI SNAPSHOT")
-                        SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED")
+                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi snapshots and bounded BLE observations", "OS-LIMITED")
+                        SourceSummary("RTL-TCP network SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q from a configured rtl_tcp server", "NETWORK / HARDWARE")
                         SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY")
                     }
                 }
@@ -705,15 +714,17 @@ private fun spectrumStateFor(selectedSource: String): Triple<String, String, Str
     }
 
 @Composable
-private fun SpectrumPanel(selectedSource: String) {
+private fun SpectrumPanel(selectedSource: String, frame: SpectrumFrame?) {
     val spectrumState = spectrumStateFor(selectedSource)
+    val plotCaption = if (frame == null) spectrumState.second
+        else "${frame.sampleCount} samples · ${frame.window.name} window · relative dBFS"
     GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 16.dp) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Spectrum", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(spectrumState.second, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Text(plotCaption, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
-            Text("RF / —", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(if (frame == null) "RF / —" else "dBFS", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
         Box(
@@ -733,29 +744,79 @@ private fun SpectrumPanel(selectedSource: String) {
                     val x = size.width * i / 6
                     drawLine(GlassLine, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
                 }
+                val amplitudes = frame?.amplitudeDbfs
+                if (amplitudes != null && amplitudes.size > 1) {
+                    val floorDbfs = -120.0
+                    val ceilingDbfs = 0.0
+                    for (index in 1 until amplitudes.size) {
+                        val previous = ((amplitudes[index - 1].coerceIn(floorDbfs, ceilingDbfs) - floorDbfs) /
+                            (ceilingDbfs - floorDbfs)).toFloat()
+                        val current = ((amplitudes[index].coerceIn(floorDbfs, ceilingDbfs) - floorDbfs) /
+                            (ceilingDbfs - floorDbfs)).toFloat()
+                        val x0 = size.width * (index - 1).toFloat() / (amplitudes.size - 1).toFloat()
+                        val x1 = size.width * index.toFloat() / (amplitudes.size - 1).toFloat()
+                        drawLine(
+                            Mint,
+                            Offset(x0, size.height * (1f - previous)),
+                            Offset(x1, size.height * (1f - current)),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+                }
             }
-            Column(
-                Modifier.align(Alignment.Center)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text("NO DATA", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                Text(spectrumState.third, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 15.sp)
+            if (frame == null) {
+                Column(
+                    Modifier.align(Alignment.Center)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text("NO DATA", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                    Text(spectrumState.third, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 15.sp)
+                }
+            } else {
+                Text(
+                    "COMPUTED · dBFS",
+                    color = Mint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(5.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-            Text("FREQUENCY AXIS: UNAVAILABLE", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
-            Text("0 SAMPLES", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
+            val axisLabel = when {
+                frame == null -> "FREQUENCY AXIS: UNAVAILABLE"
+                frame.centerFrequencyHz == null -> "AXIS: BASEBAND OFFSET"
+                else -> "AXIS: CENTERED RF"
+            }
+            Text(axisLabel, color = Muted, fontSize = 9.5.sp, letterSpacing = 0.3.sp)
+            Text(if (frame == null) "0 SAMPLES" else "${frame.sampleCount} SAMPLES", color = Muted, fontSize = 9.5.sp)
         }
         Spacer(Modifier.height(6.dp))
-        SpectrumContextRow("SOURCE", selectedSource)
-        SpectrumContextRow("OBSERVATION TIME", "—  ·  no samples acquired")
-        SpectrumContextRow("FREQUENCY · LEVEL · UNITS", "—  ·  defined by the source, when samples exist")
+        SpectrumContextRow("SOURCE", frame?.provenance?.hardwareDescription ?: selectedSource)
+        val capturedAt = frame?.provenance?.capturedAtEpochMillis
+        SpectrumContextRow(
+            "OBSERVATION TIME",
+            if (capturedAt == null) "— · no samples acquired" else
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(capturedAt))
+        )
+        val firstHz = frame?.binFrequenciesHz?.firstOrNull()
+        val lastHz = frame?.binFrequenciesHz?.lastOrNull()
+        val frequencyRange = if (firstHz == null || lastHz == null) "—" else if (frame.centerFrequencyHz == null) {
+            "${"%.1f".format(Locale.ROOT, firstHz / 1_000.0)}–${"%.1f".format(Locale.ROOT, lastHz / 1_000.0)} kHz offset"
+        } else {
+            "${"%.3f".format(Locale.ROOT, firstHz / 1_000_000.0)}–${"%.3f".format(Locale.ROOT, lastHz / 1_000_000.0)} MHz"
+        }
+        SpectrumContextRow("FREQUENCY RANGE", frequencyRange)
+        SpectrumContextRow("LEVEL", if (frame == null) "—" else "Relative dBFS; not calibrated dBm or dBm/Hz")
     }
 }
 
@@ -832,13 +893,13 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             "Intended for visible indicator states, brightness changes, and blink timing. Camera frame rate, " +
                 "exposure, and lighting limit the timing accuracy. This source cannot detect RF directly.",
             selectedSource == "Optical observation") { onSelectSource("Optical observation") }
-        SourceDetailCard("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Android-reported observations", "NOT IMPLEMENTED",
-            "Will use supported Android APIs and required runtime permissions. Results depend on OS version, " +
-                "permissions, radio state, and what the device exposes; they are not a calibrated wideband spectrum.",
+        SourceDetailCard("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Android-reported observations", "AVAILABLE · LIMITED",
+            "Wi-Fi scan snapshots and bounded Bluetooth Low Energy observations use Android APIs and runtime permissions. Results depend on OS version, " +
+                "permissions, radio state, throttling, and what the device exposes; they are not a calibrated wideband spectrum.",
             selectedSource == "Wi-Fi and Bluetooth") { onSelectSource("Wi-Fi and Bluetooth") }
-        SourceDetailCard("External SDR", InstrumentIconKind.Antenna, Amber, "USB host / supported receiver", "HARDWARE REQUIRED",
-            "Continuous RF spectrum or IQ acquisition requires a compatible SDR, supported USB interface, " +
-                "permission handling, and a validated receiver pipeline. No RF readings are available without it.",
+        SourceDetailCard("External SDR", InstrumentIconKind.Antenna, Amber, "RTL-TCP network receiver; direct USB pending", "NETWORK / HARDWARE REQUIRED",
+            "A configured rtl_tcp server can supply network I/Q for local spectrum analysis when a compatible receiver is connected at the server. " +
+                "Direct USB support and physical receiver validation remain outstanding.",
             selectedSource == "External SDR") { onSelectSource("External SDR") }
         SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "STORAGE READY",
             "Create and close sessions, inspect persisted observations and findings, and export traceable session metadata to CSV. Raw sample payloads are not stored.",
@@ -902,7 +963,7 @@ private fun SourceDetailCard(
 /* --------------------------------------------------------------- sessions */
 
 @Composable
-private fun SessionsScreen() {
+private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val database = remember(context) { LocalObservationDatabase(context) }
@@ -919,6 +980,13 @@ private fun SessionsScreen() {
     var showNoteDialog by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
     var bluetoothScanInProgress by remember { mutableStateOf(false) }
+    var showSdrDialog by remember { mutableStateOf(false) }
+    var sdrCaptureInProgress by remember { mutableStateOf(false) }
+    var sdrHost by remember { mutableStateOf("") }
+    var sdrPort by remember { mutableStateOf("1234") }
+    var sdrCenterFrequency by remember { mutableStateOf("100000000") }
+    var sdrSampleRate by remember { mutableStateOf("2048000") }
+    var sdrSampleCount by remember { mutableStateOf("4096") }
 
     val createCsvDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -1148,6 +1216,7 @@ private fun SessionsScreen() {
                 selectedSessionId = target.id
                 selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
                 sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                onSpectrumFrame(result.spectrumFrame)
                 feedback = "Imported and analysed ${payload.sampleCount} samples. Outcome: ${result.provenance.run.outcome}. Levels are relative dBFS, not calibrated power."
                 pendingImportPayload = null
                 showImportDialog = false
@@ -1157,6 +1226,72 @@ private fun SessionsScreen() {
                 pendingImportPayload = null
                 showImportDialog = false
                 feedback = "Import record may be saved, but analysis did not complete: ${error.message ?: "unknown error"}. Review the session before retrying to avoid duplicate imports."
+            }
+        }
+    }
+
+    fun captureSdr() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Select an open session before capturing from an RTL-TCP receiver."
+            return
+        }
+        val host = sdrHost.trim()
+        val port = sdrPort.trim().toIntOrNull()
+        val centerFrequency = sdrCenterFrequency.trim().toDoubleOrNull()
+        val sampleRate = sdrSampleRate.trim().toLongOrNull()
+        val sampleCount = sdrSampleCount.trim().toIntOrNull()
+        if (host.isBlank() || port == null || port !in 1..65535) {
+            feedback = "Enter a valid RTL-TCP host and TCP port."
+            return
+        }
+        if (centerFrequency == null || !centerFrequency.isFinite() || centerFrequency < 0.0) {
+            feedback = "Enter a valid center frequency in Hz."
+            return
+        }
+        if (sampleRate == null || sampleRate !in RtlTcpNetworkDriver.SUPPORTED_SAMPLE_RATES_HZ) {
+            feedback = "Choose a supported RTL-TCP sample rate: " +
+                RtlTcpNetworkDriver.SUPPORTED_SAMPLE_RATES_HZ.sorted().joinToString(", ") + " Hz."
+            return
+        }
+        if (sampleCount == null || sampleCount < 2 ||
+            sampleCount > SdrCaptureRequest.MAX_CAPTURE_SAMPLES || Integer.bitCount(sampleCount) != 1) {
+            feedback = "Sample count must be a power of two between 2 and ${SdrCaptureRequest.MAX_CAPTURE_SAMPLES}."
+            return
+        }
+        if (centerFrequency < sampleRate / 2.0) {
+            feedback = "Center frequency must be at least half the sample rate for a non-negative RF frequency axis."
+            return
+        }
+        sdrCaptureInProgress = true
+        feedback = "Connecting to the configured RTL-TCP endpoint and waiting for a real I/Q capture…"
+        scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val driver = RtlTcpNetworkDriver(host, port)
+                    val registry = SdrReceiverRegistry()
+                    registry.register(driver)
+                    val device = registry.discoverDevices().single()
+                    RfAnalysisCoordinator(database).captureAndAnalyzeSdr(
+                        sessionId = target.id,
+                        registry = registry,
+                        driverId = driver.driverId,
+                        deviceId = device.descriptor.deviceId,
+                        request = SdrCaptureRequest(centerFrequency, sampleRate, sampleCount),
+                        observationId = UUID.randomUUID().toString(),
+                        runId = UUID.randomUUID().toString()
+                    )
+                }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                onSpectrumFrame(result.analysis.spectrumFrame)
+                showSdrDialog = false
+                feedback = "Captured and analysed ${result.observation.sampleCount} I/Q samples from the configured RTL-TCP endpoint. Relative dBFS only; the basic protocol does not verify tuner settings or timestamp individual samples."
+            } catch (error: Exception) {
+                feedback = "RTL-TCP capture or analysis failed: ${error.message ?: "unknown error"}. No synthetic measurements were substituted."
+            } finally {
+                sdrCaptureInProgress = false
             }
         }
     }
@@ -1310,6 +1445,16 @@ private fun SessionsScreen() {
             )
             Spacer(Modifier.height(8.dp))
             GoldButton(
+                if (sdrCaptureInProgress) "Capturing RTL-TCP samples…" else "Capture from RTL-TCP network SDR",
+                { if (!sdrCaptureInProgress) showSdrDialog = true },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Connect to a remote rtl_tcp server you control. Enter its host and port below. This is real network I/Q acquisition when a compatible server and receiver are available; no network scan or fake data is used.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
                 "Record Wi-Fi scan snapshot",
                 {
                     val permissionsGranted = wifiPermissions.all {
@@ -1436,6 +1581,39 @@ private fun SessionsScreen() {
         InfoRow("Analysis provenance", "Algorithm, version, parameters, outcome, evidence and limitations", InstrumentIconKind.Check, Gold)
         InfoRow("CSV export", "Uses Android's document picker so the user chooses where the CSV file is saved", InstrumentIconKind.Export, Stone)
         Text("Raw IQ/sample payloads are not stored in this database. Export includes persisted metadata and traceable findings only.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+
+    if (showSdrDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!sdrCaptureInProgress) showSdrDialog = false },
+            title = { Text("RTL-TCP network receiver") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "The remote computer must already run rtl_tcp with a compatible RTL-SDR connected. Use its reachable IP/hostname and port. The server protocol has no per-sample timestamps or reliable tuning acknowledgement.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+                    )
+                    OutlinedTextField(sdrHost, { sdrHost = it }, label = { Text("Server host or IP *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrPort, { sdrPort = it }, label = { Text("TCP port *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrCenterFrequency, { sdrCenterFrequency = it }, label = { Text("Center frequency (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrSampleRate, { sdrSampleRate = it }, label = { Text("Sample rate (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrSampleCount, { sdrSampleCount = it }, label = { Text("Sample count (power of two) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        "Capture is saved to the selected open session, then analysed locally. Samples remain in memory, not in the metadata database. Levels are dBFS, not calibrated dBm.",
+                        color = Amber, fontSize = 11.sp, lineHeight = 16.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::captureSdr, enabled = !sdrCaptureInProgress) { Text(if (sdrCaptureInProgress) "Capturing…" else "Capture and analyse") }
+            },
+            dismissButton = {
+                TextButton(onClick = { if (!sdrCaptureInProgress) showSdrDialog = false }, enabled = !sdrCaptureInProgress) { Text("Cancel") }
+            }
+        )
     }
 
     if (showImportDialog) {
