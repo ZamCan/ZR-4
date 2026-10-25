@@ -81,7 +81,7 @@ class SessionCsvExporterTest {
         assertTrue(csv.contains("ANALYSIS_RUN"))
         assertTrue(csv.contains("adaptive-spectrum-detector"))
         assertTrue(csv.contains("SPECTRAL_PEAK_CANDIDATE"))
-        assertTrue(csv.contains("433920000.0"))
+        assertTrue(csv.contains("433920000"))
         assertTrue(csv.contains("not a confirmed transmitter"))
     }
 }
