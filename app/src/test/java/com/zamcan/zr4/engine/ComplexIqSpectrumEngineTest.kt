@@ -44,6 +44,18 @@ class ComplexIqSpectrumEngineTest {
         assertEquals(center - bin * sampleRate / n, frame.binFrequenciesHz[peak], 1e-6)
     }
 
+    @Test fun rejectsOutOfRangeNormalizedIqSamples() {
+        try {
+            ComplexIqSpectrumEngine.analyze(
+                doubleArrayOf(0.0, 1.2), doubleArrayOf(0.0, 0.0), 1000.0, 10000.0,
+                WindowFunction.RECTANGULAR
+            )
+            throw AssertionError("Out-of-range I/Q samples must be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message!!.contains("normalized"))
+        }
+    }
+
     @Test fun rejectsMismatchedOrNonFiniteSamples() {
         try {
             ComplexIqSpectrumEngine.analyze(doubleArrayOf(0.0, 1.0), doubleArrayOf(0.0), 1000.0, 10000.0)
