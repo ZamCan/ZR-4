@@ -12,6 +12,8 @@ import com.zamcan.zr4.receiver.ReceiverTransport
 import com.zamcan.zr4.receiver.SdrCaptureRequest
 import com.zamcan.zr4.receiver.SdrReceiverCapabilities
 import com.zamcan.zr4.receiver.SdrReceiverConnection
+import com.zamcan.zr4.receiver.SdrReceiverDriver
+import com.zamcan.zr4.receiver.SdrReceiverRegistry
 import com.zamcan.zr4.receiver.SdrReceiverDescriptor
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -87,6 +89,7 @@ class RfAnalysisCoordinatorTest {
         val n = 1024
         val sampleRate = 8192L
         val centerFrequency = 100_000_000.0
+        var connectionClosed = false
         val connection = object : SdrReceiverConnection {
             override val descriptor = SdrReceiverDescriptor(
                 "test-device", "Test SDR fixture", ReceiverTransport.OTHER
@@ -106,13 +109,24 @@ class RfAnalysisCoordinatorTest {
                     now - 2_000L, now - 1_000L, "Test SDR fixture"
                 )
             }
-            override fun close() = Unit
+            override fun close() { connectionClosed = true }
         }
+        val registry = SdrReceiverRegistry()
+        registry.register(object : SdrReceiverDriver {
+            override val driverId = "test-sdr-driver"
+            override fun discoverDevices() = listOf(connection.descriptor)
+            override fun open(deviceId: String): SdrReceiverConnection {
+                require(deviceId == connection.descriptor.deviceId)
+                return connection
+            }
+        })
         store.createSession(session)
 
         val result = RfAnalysisCoordinator(store).captureAndAnalyzeSdr(
             sessionId = session.id,
-            connection = connection,
+            registry = registry,
+            driverId = "test-sdr-driver",
+            deviceId = connection.descriptor.deviceId,
             request = SdrCaptureRequest(centerFrequency, sampleRate, n),
             observationId = "observation-live-driver-contract",
             runId = "run-live-driver-contract"
@@ -128,6 +142,7 @@ class RfAnalysisCoordinatorTest {
         assertEquals("two-sided centered complex-I/Q RF bins",
             saved.analysisRuns.single().parameters["frequencyInterpretation"])
         assertTrue(saved.observations.single().notes.any { it.contains("not stored") })
+        assertTrue(connectionClosed)
     }
 
     @Test fun failedFindingInsertRollsBackTheEntireAnalysisTransaction() {

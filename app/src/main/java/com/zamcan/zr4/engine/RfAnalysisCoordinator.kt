@@ -2,10 +2,10 @@ package com.zamcan.zr4.engine
 
 import com.zamcan.zr4.storage.LocalObservationDatabase
 import com.zamcan.zr4.importer.NormalizedSamplePayload
-import com.zamcan.zr4.receiver.NormalizedComplexIqCapture
 import com.zamcan.zr4.receiver.SdrCaptureRequest
 import com.zamcan.zr4.receiver.SdrCaptureValidator
 import com.zamcan.zr4.receiver.SdrReceiverConnection
+import com.zamcan.zr4.receiver.SdrReceiverRegistry
 
 /**
  * Runs a deterministic analysis against an observation already stored in an
@@ -75,6 +75,31 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         )
         store.saveAnalysis(sessionId, result.provenance)
         return result
+    }
+
+    /**
+     * Registry-backed entry point. It opens only a device currently reported by
+     * the registered driver and always closes the connection after the operation.
+     */
+    fun captureAndAnalyzeSdr(
+        sessionId: String,
+        registry: SdrReceiverRegistry,
+        driverId: String,
+        deviceId: String,
+        request: SdrCaptureRequest,
+        observationId: String,
+        runId: String,
+        window: WindowFunction = WindowFunction.HANN,
+        config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
+    ): SdrCaptureAnalysisResult {
+        val connection = registry.open(driverId, deviceId)
+        return try {
+            captureAndAnalyzeSdr(
+                sessionId, connection, request, observationId, runId, window, config
+            )
+        } finally {
+            connection.close()
+        }
     }
 
     /**
