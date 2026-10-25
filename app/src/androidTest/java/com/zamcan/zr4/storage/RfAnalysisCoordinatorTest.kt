@@ -102,9 +102,10 @@ class RfAnalysisCoordinatorTest {
             )
             override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
                 capabilities.validate(request)
+                val toneBin = 64
                 return NormalizedComplexIqCapture(
-                    DoubleArray(n) { i -> if (i == 1) 0.5 else 0.0 },
-                    DoubleArray(n) { i -> if (i == 2) -0.5 else 0.0 },
+                    DoubleArray(n) { index -> 0.5 * kotlin.math.cos(2.0 * PI * toneBin * index / n) },
+                    DoubleArray(n) { index -> 0.5 * kotlin.math.sin(2.0 * PI * toneBin * index / n) },
                     request.centerFrequencyHz, request.sampleRateHz,
                     now - 2_000L, now - 1_000L, "Test SDR fixture"
                 )
