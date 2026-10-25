@@ -1,6 +1,7 @@
 package com.zamcan.zr4.export
 
 import com.zamcan.zr4.engine.ObservationSessionSnapshot
+import java.math.BigDecimal
 import java.time.Instant
 
 /**
@@ -126,7 +127,13 @@ object SessionCsvExporter {
     private fun utc(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).toString()
 
     private fun cell(value: Any?): String {
-        val text = value?.toString().orEmpty()
+        // Use locale-independent plain decimal notation for numeric CSV cells;
+        // scientific notation can make exported frequencies harder to inspect.
+        val text = when (value) {
+            is Double -> BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
+            is Float -> BigDecimal.valueOf(value.toDouble()).stripTrailingZeros().toPlainString()
+            else -> value?.toString().orEmpty()
+        }
         return if (text.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
             "\"" + text.replace("\"", "\"\"") + "\""
         } else text
