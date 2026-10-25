@@ -6,7 +6,6 @@ import org.junit.Test
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.math.cos
-import kotlin.math.abs
 
 class ComplexIqSpectrumEngineTest {
     @Test fun positiveComplexToneAppearsAboveCenterFrequency() {
@@ -28,7 +27,6 @@ class ComplexIqSpectrumEngineTest {
         val peak = frame.amplitudeDbfs.indices.maxBy { frame.amplitudeDbfs[it] }
         assertEquals(center + bin * sampleRate / n, frame.binFrequenciesHz[peak], 1e-6)
         assertEquals(-6.0206, frame.amplitudeDbfs[peak], 0.1)
-        assertEquals(SpectrumRepresentation.COMPLEX_CENTERED, SpectrumRepresentation.COMPLEX_CENTERED)
     }
 
     @Test fun negativeComplexToneAppearsBelowCenterFrequency() {
