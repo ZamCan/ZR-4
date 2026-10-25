@@ -1,6 +1,7 @@
 package com.zamcan.zr4.engine
 
 import com.zamcan.zr4.storage.LocalObservationDatabase
+import com.zamcan.zr4.importer.NormalizedSamplePayload
 
 /**
  * Runs a deterministic analysis against an observation already stored in an
@@ -61,6 +62,38 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         )
         store.saveAnalysis(sessionId, result.provenance)
         return result
+    }
+
+    /**
+     * Convenience entry point for a parsed normalized CSV payload.
+     * The observation must already be saved in the selected open session.
+     */
+    fun analyzeImportedSpectrum(
+        sessionId: String,
+        observation: ObservationRecord,
+        runId: String,
+        startedAtEpochMillis: Long,
+        completedAtEpochMillis: Long,
+        payload: NormalizedSamplePayload,
+        window: WindowFunction = WindowFunction.HANN,
+        config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
+    ): RfAnalysisPipelineResult {
+        require(observation.sourceType == ObservationSourceType.IMPORTED_FILE) {
+            "Imported payloads require an observation marked IMPORTED_FILE."
+        }
+        require(observation.sampleCount == payload.sampleCount) {
+            "Imported payload count does not match the stored observation metadata."
+        }
+        return when (payload) {
+            is NormalizedSamplePayload.Real -> analyzeSpectrum(
+                sessionId, observation, runId, startedAtEpochMillis, completedAtEpochMillis,
+                payload.samples, window, config
+            )
+            is NormalizedSamplePayload.ComplexIq -> analyzeComplexIq(
+                sessionId, observation, runId, startedAtEpochMillis, completedAtEpochMillis,
+                payload.iSamples, payload.qSamples, window, config
+            )
+        }
     }
 
     private fun requireStoredObservation(sessionId: String, observation: ObservationRecord) {
