@@ -44,6 +44,7 @@ class AndroidRadioObservationCollector(private val context: Context) {
             )
 
         return try {
+            val wifiEnabled = manager.isWifiEnabled
             val results = manager.scanResults.orEmpty()
             val scanTimestampMicros = results.maxOfOrNull { it.timestamp } ?: 0L
             val ageMillis = if (scanTimestampMicros > 0L) {
@@ -54,7 +55,8 @@ class AndroidRadioObservationCollector(private val context: Context) {
             val strongest = results.maxOfOrNull { it.level }
             val notes = listOf(
                 "Android Wi-Fi scan-result metadata; not continuous RF spectrum.",
-                if (fresh) "Results are recent." else "Results may be stale or have no usable timestamp.",
+                if (!wifiEnabled) "Wi-Fi is disabled; any returned results are historical metadata."
+                else if (fresh) "Results are recent." else "Results may be stale or have no usable timestamp.",
                 "RSSI is handset-reported and is not calibrated receiver spectrum power.",
                 strongest?.let { "Strongest observed RSSI: " + it + " dBm." } ?: "No RSSI value available.",
                 if (frequencies.isEmpty()) "No Wi-Fi frequencies reported." else "Observed frequencies in MHz: " + frequencies.joinToString(", ") + ".",
@@ -64,8 +66,13 @@ class AndroidRadioObservationCollector(private val context: Context) {
                 observation = observation(
                     ObservationSourceType.ANDROID_WIFI, nowEpochMillis,
                     if (strongest == null) ObservationDataUnit.COUNT else ObservationDataUnit.RSSI_DBM,
-                    if (results.isEmpty()) ObservationRecordState.INCOMPLETE
-                    else if (fresh) ObservationRecordState.VALID else ObservationRecordState.STALE,
+                    when {
+                        !wifiEnabled && results.isEmpty() -> ObservationRecordState.INCOMPLETE
+                        !wifiEnabled -> ObservationRecordState.STALE
+                        results.isEmpty() -> ObservationRecordState.INCOMPLETE
+                        fresh -> ObservationRecordState.VALID
+                        else -> ObservationRecordState.STALE
+                    },
                     results.size, notes,
                     mapOf(
                         "result_age_ms" to ageMillis.toString(),
@@ -80,7 +87,7 @@ class AndroidRadioObservationCollector(private val context: Context) {
                 frequenciesMhz = frequencies,
                 scanResultsFresh = fresh,
                 statusMessage = when {
-                    !manager.isWifiEnabled -> "Wi-Fi is disabled. No scan was performed."
+                    !wifiEnabled -> "Wi-Fi is disabled. No scan was performed; any returned results are historical metadata."
                     results.isEmpty() -> "No scan results available. Android may require location services, permission, and a successful scan."
                     !fresh -> "Existing scan results are stale; treat them as historical metadata."
                     else -> "Recent Wi-Fi scan results read successfully."

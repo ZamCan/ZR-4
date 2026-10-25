@@ -43,11 +43,11 @@ The Sessions screen can record the handset's currently available Android Wi-Fi s
 
 The Sessions screen can run a bounded five-second Android BLE scan after the required Bluetooth runtime permissions are granted. Records include the number of scan-result callbacks and strongest handset-reported RSSI, when available. The callback count is not a count of unique physical devices. Device addresses, advertised names, and payloads are not retained. The manifest marks BLE scanning as never-for-location; Android may filter some beacon types. BLE observations are not raw IQ or continuous RF spectrum. Physical-device behavior remains to be validated.
 
-## Not yet implemented
+## Verification boundary\n\nGitHub Actions has successfully assembled the debug APK and run both JVM tests and Android emulator instrumentation tests for the Wi-Fi-integrated branch. The BLE implementation is undergoing a separate CI run. Emulator tests do not validate the handset-specific behavior of Wi-Fi scan throttling, location services, BLE availability, or permission prompts; those checks remain necessary on physical devices.\n\n## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
 - External SDR discovery, driver support, sample acquisition, and hardware validation.
-- Device/emulator execution of the Android SQLite instrumentation tests.
+- Physical handset validation of Android Wi-Fi/BLE permission behavior, scan throttling, and hardware availability.
 - USB SDR discovery, acquisition, and a verified raw-sample-to-analysis UI workflow.
 
 Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition. Android Wi-Fi scan metadata is not passed to the normalized-sample analysis pipeline.

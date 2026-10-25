@@ -82,7 +82,7 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 - [x] Launcher identity, reusable build tooling, Observatory Glass UI
 - [x] Deterministic DSP/detection foundation and traceable analysis records
 - [x] SQLite persistence engine and Android instrumentation tests authored
-- [ ] Verify integration build and execute device/emulator instrumentation tests
+- [x] GitHub Actions integration build, JVM tests, and emulator instrumentation tests passed for the Wi-Fi-integrated commit; latest BLE integration validation is in progress\n- [ ] Validate Wi-Fi/BLE permission prompts and actual radio behavior on physical handsets
 - [x] Wire persistent session workflows and findings into the UI
 - [x] Implement CSV metadata export and exporter unit tests
 - [ ] Implement camera-based optical observation with sampling limitations
