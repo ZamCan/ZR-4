@@ -801,9 +801,9 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             "Continuous RF spectrum or IQ acquisition requires a compatible SDR, supported USB interface, " +
                 "permission handling, and a validated receiver pipeline. No RF readings are available without it.",
             selectedSource == "External SDR") { onSelectSource("External SDR") }
-        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and exports", "NOT IMPLEMENTED",
-            "Planned session records will retain timestamps, source identity, units, configuration, and relevant " +
-                "limitations. CSV export will only include values actually acquired or explicitly entered.",
+        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "ENGINE READY · UI PENDING",
+            "The local SQLite engine stores session metadata, observations, analysis runs, findings, evidence, and limitations. " +
+                "The screen is not yet connected to it, and CSV export is not implemented.",
             selectedSource == "Measurement sessions") { onSelectSource("Measurement sessions") }
 
         GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 17.dp) {
@@ -880,9 +880,8 @@ private fun SessionsScreen() {
                 IconBadge(InstrumentIconKind.Layers, Stone, 60.dp)
                 Text("No sessions recorded", fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "The engine layer defines traceable sessions, observations and analysis runs, " +
-                        "but they are not connected to this interface and nothing is persisted on " +
-                        "this device yet. No placeholder records are shown.",
+                    "Local SQLite persistence is present in the backend, but this screen is not connected to it yet. " +
+                        "No records are loaded here, so no placeholder sessions are shown.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
                 )
             }
@@ -915,7 +914,7 @@ private fun SessionsScreen() {
         InfoRow("Observation source", "Device / adapter and source type", InstrumentIconKind.Antenna, Amber)
         InfoRow("Units and configuration", "Recorded alongside every measurement", InstrumentIconKind.Settings, Gold)
         InfoRow("Analysis provenance", "Algorithm, version, parameters and outcome for every analysis run", InstrumentIconKind.Check, Mint)
-        InfoRow("Export", "CSV after storage and validation are implemented", InstrumentIconKind.Export, Stone)
+        InfoRow("Export", "CSV export is not implemented yet", InstrumentIconKind.Export, Stone)
     }
 }
 
@@ -957,8 +956,9 @@ private fun AboutScreen() {
         InfoRow("Privacy", "Use authorized devices and respect local regulations", InstrumentIconKind.Lock, Stone)
 
         Text(
-            "This version is an interface foundation. The acquisition engines, persistent session database, " +
-                "plots based on actual samples, and hardware integrations require separate implementation and verification.",
+            "This version combines the Observatory Glass interface and local SQLite persistence engine. " +
+                "Session screens are not yet wired to storage; acquisition, real-sample plots, CSV export, " +
+                "and hardware integrations still require implementation and verification.",
             color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
         )
     }
