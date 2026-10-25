@@ -801,7 +801,7 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             "Continuous RF spectrum or IQ acquisition requires a compatible SDR, supported USB interface, " +
                 "permission handling, and a validated receiver pipeline. No RF readings are available without it.",
             selectedSource == "External SDR") { onSelectSource("External SDR") }
-        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "ENGINE READY · UI PENDING",
+        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "STORAGE READY",
             "The local SQLite engine stores session metadata, observations, analysis runs, findings, evidence, and limitations. " +
                 "The screen is not yet connected to it, and CSV export is not implemented.",
             selectedSource == "Measurement sessions") { onSelectSource("Measurement sessions") }
