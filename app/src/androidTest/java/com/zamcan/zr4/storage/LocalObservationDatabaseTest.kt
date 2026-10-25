@@ -19,6 +19,7 @@ import com.zamcan.zr4.engine.ObservationRecord
 import com.zamcan.zr4.engine.ObservationRecordState
 import com.zamcan.zr4.engine.ObservationSession
 import com.zamcan.zr4.engine.ObservationSessionState
+import com.zamcan.zr4.engine.ProvenancedAnalysis
 import com.zamcan.zr4.engine.ObservationSourceType
 import com.zamcan.zr4.engine.TraceableFinding
 
@@ -87,6 +88,38 @@ class LocalObservationDatabaseTest {
             assertTrue(expected.message!!.contains("closed"))
         }
         assertEquals(ObservationSessionState.CLOSED, store.loadSession("session-1")!!.session.state)
+    }
+
+    @Test
+    fun testCompletedAnalysisAndFindingsAreSavedTogether() {
+        store.createSession(session())
+        store.addObservation("session-1", observation())
+        store.saveAnalysis("session-1", ProvenancedAnalysis(run(), listOf(finding())))
+
+        val snapshot = store.loadSession("session-1")!!
+        assertEquals(AnalysisRunOutcome.SUCCESS, snapshot.analysisRuns.single().outcome)
+        assertEquals("run-1", snapshot.findings.single().analysisRunId)
+        assertEquals("obs-1", snapshot.findings.single().observationId)
+    }
+
+    @Test
+    fun testAnalysisSaveRollsBackRunAndFirstFindingWhenLaterFindingFails() {
+        store.createSession(session())
+        store.addObservation("session-1", observation())
+
+        try {
+            store.saveAnalysis(
+                "session-1",
+                ProvenancedAnalysis(run(), listOf(finding(), finding()))
+            )
+            fail("Duplicate finding id should roll back the full analysis transaction")
+        } catch (expected: RuntimeException) {
+            // SQLite rejects the duplicate primary key; transaction must roll back.
+        }
+
+        val snapshot = store.loadSession("session-1")!!
+        assertTrue(snapshot.analysisRuns.isEmpty())
+        assertTrue(snapshot.findings.isEmpty())
     }
 
     @Test
