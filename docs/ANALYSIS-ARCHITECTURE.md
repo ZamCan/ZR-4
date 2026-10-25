@@ -22,16 +22,18 @@ A test fixture is test data, never a live measurement. A source adapter must cre
 
 ## Frequency and amplitude interpretation
 
-The current real-sample FFT returns a one-sided spectrum from zero to the Nyquist frequency. Its bins are baseband offsets; a tuned center frequency is retained as metadata but is not added to these bins. This prevents a one-sided real-sample spectrum from being mislabelled as a centered complex-I/Q SDR spectrum.
+Two paths are kept distinct:
 
-Levels are dBFS relative to normalized full scale. They are not calibrated dBm or dBm/Hz. Absolute power requires a documented, validated receiver calibration path.
+- The real-sample FFT returns a one-sided spectrum from zero to the Nyquist frequency. Its bins are baseband offsets; a tuned center frequency is retained as metadata but is not added to these bins.
+- The complex-I/Q FFT returns a two-sided centered spectrum from center frequency minus half the sample rate (inclusive) to center frequency plus half the sample rate (exclusive). It requires equal-length finite I/Q arrays and a center frequency that keeps the represented RF bins non-negative.
+
+Both paths report relative dBFS amplitudes, not calibrated dBm or dBm/Hz. Absolute power requires a documented, validated receiver calibration path. The complex-I/Q engine accepts sample arrays but does not discover or acquire SDR hardware by itself.
 
 ## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
 - Android Wi-Fi and Bluetooth observations using the actual permissions and operating-system APIs.
 - External SDR discovery, driver support, sample acquisition, and hardware validation.
-- A dedicated centered complex-I/Q FFT path for SDR captures.
 - Device/emulator execution of the Android SQLite instrumentation tests.
 - A complete UI workflow that acquires supported source data and invokes the coordinator.
 
