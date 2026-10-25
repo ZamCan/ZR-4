@@ -2,7 +2,7 @@
 
 **ZR 4** is the public app name. **ZamCan RF Observatory** is the formal product name.
 
-ZR 4 is an offline-first native Android workspace for optical observations, Android-reported Wi-Fi/Bluetooth observations, and compatible external software-defined radio (SDR) receivers. This integration branch combines the Observatory Glass interface with the deterministic RF analysis and local SQLite persistence foundations. Device verification is still required before calling persistence production-ready.
+ZR 4 is an offline-first native Android workspace for optical observations, Android-reported Wi-Fi/Bluetooth observations, and compatible external software-defined radio (SDR) receivers. The `core/premium-stable` branch consolidates the Observatory Glass interface, deterministic RF analysis, and local SQLite persistence foundations. Device verification is still required before calling persistence production-ready.
 
 ## Product principles
 
@@ -94,4 +94,4 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 
 Use ZR 4 only with devices and radio environments you are authorized to observe. Respect local radio regulations and privacy. Do not claim frequency, power, dBm, bandwidth, noise-floor, or calibration values unless the actual source supports them. Record calibration and uncertainty where relevant.
 
-**Status:** integration branch for review and verification. A feature is not considered complete until its code, tests, and relevant device/hardware checks are verified.
+**Status:** consolidated core branch under verification. A feature is not considered complete until its code, tests, and relevant device/hardware checks are verified.
