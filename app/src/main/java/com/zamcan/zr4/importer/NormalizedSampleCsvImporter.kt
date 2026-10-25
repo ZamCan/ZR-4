@@ -29,9 +29,13 @@ sealed interface NormalizedSamplePayload {
 }
 
 object NormalizedSampleCsvImporter {
-    const val MAX_SAMPLE_COUNT = 4_194_304
+    const val MAX_SAMPLE_COUNT = 262_144
+    const val MAX_CSV_CHARACTERS = 8 * 1024 * 1024
 
     fun parse(csv: String): NormalizedSamplePayload {
+        require(csv.length <= MAX_CSV_CHARACTERS) {
+            "CSV file exceeds the supported 8 MiB import limit."
+        }
         require(csv.isNotBlank()) { "CSV file is empty." }
         val lines = csv.lineSequence()
             .mapIndexed { index, line -> index + 1 to line.trim() }
