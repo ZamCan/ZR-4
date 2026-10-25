@@ -43,6 +43,12 @@ The Sessions screen can record the handset's currently available Android Wi-Fi s
 
 The Sessions screen can run a bounded five-second Android BLE scan after the required Bluetooth runtime permissions are granted. Records include the number of scan-result callbacks and strongest handset-reported RSSI, when available. The callback count is not a count of unique physical devices. Device addresses, advertised names, and payloads are not retained. The manifest marks BLE scanning as never-for-location; Android may filter some beacon types. BLE observations are not raw IQ or continuous RF spectrum. Physical-device behavior remains to be validated.
 
+## External SDR driver contract
+
+The pure Kotlin receiver contract defines explicit driver registration, device discovery, capability declarations, bounded capture requests, normalized complex-I/Q payload validation, and capture metadata checks. A registry with no registered driver returns no devices; it never synthesizes receiver data. Each driver must declare its supported frequency range and discrete sample rates, and capture metadata must match the requested center frequency, sample rate, and sample count. The capture object defensively copies sample arrays and validates finite normalized values in [-1, 1]. A calibration label is descriptive metadata, not proof of calibration.
+
+This is an integration boundary only: no USB/network SDR driver is bundled, no receiver is currently acquired through this contract, and no hardware capability is inferred from a USB vendor/product ID. Driver-specific discovery, permissions, configuration, and physical-device validation remain separate work.
+
 ## Verification boundary
 
 GitHub Actions has successfully assembled the debug APK and run both JVM tests and Android emulator instrumentation tests for the Wi-Fi-integrated branch. The BLE implementation is undergoing a separate CI run. Emulator tests do not validate the handset-specific behavior of Wi-Fi scan throttling, location services, BLE availability, or permission prompts; those checks remain necessary on physical devices.
