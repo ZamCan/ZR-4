@@ -18,7 +18,7 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 1. **Optical observation:** camera-assisted visible-indicator, brightness, and blink-timing analysis within camera sampling limits. A camera does not detect RF.
 2. **Built-in radios:** only observations exposed by Android Wi-Fi and Bluetooth APIs; not a calibrated continuous spectrum.
 3. **External SDR:** spectrum/IQ measurements only when a compatible receiver and validated acquisition pipeline are available.
-4. **Measurement sessions:** local SQLite metadata persistence is implemented in this branch but still requires successful local compilation and Android-device/emulator test execution. CSV export is not implemented.
+4. **Measurement sessions:** create, inspect, and close local SQLite sessions; inspect stored observations and findings; export session metadata through Android's document picker as CSV. The database stores metadata, not raw IQ/sample payloads.
 5. **Multi-device correlation:** future consent-based comparison of recorded sessions; it does not increase receiver sensitivity or frequency coverage.
 
 ## Backend foundation
@@ -32,8 +32,8 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 - [x] Transactional writes, foreign keys, session-state checks, and deterministic metadata serialization
 - [x] Android instrumentation tests authored for database reopen, metadata serialization, provenance checks, closed sessions, and missing sessions
 - [ ] Successful local compile and execution of Android instrumentation tests still required
-- [ ] Persistent storage is not yet wired into the Compose interface
-- [ ] Verified CSV export is not implemented
+- [x] Compose session workspace wired to SQLite for create/list/inspect/close flows
+- [x] CSV metadata exporter and document-picker save flow, with JVM tests authored
 - [ ] Live Android radio acquisition and external SDR capture remain future integrations
 
 Raw IQ/sample payloads are intentionally not stored in the metadata database. Unknown schema migrations fail explicitly rather than silently dropping data. Detector outputs are candidates, not proof of emitter identity. Spectrum levels are dBFS unless a calibrated acquisition path establishes another unit.
@@ -45,7 +45,7 @@ Raw IQ/sample payloads are intentionally not stored in the metadata database. Un
 - Custom Canvas line icons, branded PNG launcher assets, compact pinned header, floating bottom navigation, responsive source panels, and Overview / Sources / Sessions / About sections
 - Empty spectrum states remain explicitly **NO DATA** until real samples exist
 - Source selection and navigation are interface actions only; selecting a module does not start acquisition
-- Sessions empty state accurately explains that SQLite exists in the backend but is not yet connected to the interface
+- Session workspace uses SQLite for persisted session workflows and offers CSV export; no placeholder measurements are shown
 
 See [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) and [docs/brand/](docs/brand/).
 
@@ -82,8 +82,8 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 - [x] Deterministic DSP/detection foundation and traceable analysis records
 - [x] SQLite persistence engine and Android instrumentation tests authored
 - [ ] Verify integration build and execute device/emulator instrumentation tests
-- [ ] Wire persistent sessions and findings into the UI
-- [ ] Implement verified CSV export
+- [x] Wire persistent session workflows and findings into the UI
+- [x] Implement CSV metadata export and exporter unit tests
 - [ ] Implement camera-based optical observation with sampling limitations
 - [ ] Implement real Wi-Fi/Bluetooth observations with permission and OS-version checks
 - [ ] Implement USB host discovery and supported SDR adapter interface
