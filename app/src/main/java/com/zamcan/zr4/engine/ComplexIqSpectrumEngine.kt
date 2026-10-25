@@ -65,6 +65,9 @@ object ComplexIqSpectrumEngine {
         require(iSamples.all { it.isFinite() } && qSamples.all { it.isFinite() }) {
             "I/Q samples must not contain NaN or infinity."
         }
+        require(iSamples.all { it in -1.0..1.0 } && qSamples.all { it in -1.0..1.0 }) {
+            "I/Q samples must be normalized to the supported range [-1, 1] for dBFS analysis."
+        }
 
         val n = iSamples.size
         val real = iSamples.copyOf()
