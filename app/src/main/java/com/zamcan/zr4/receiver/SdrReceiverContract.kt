@@ -160,8 +160,21 @@ class SdrReceiverRegistry {
             "The requested receiver is not currently reported by driver $driverId."
         }
         val connection = driver.open(deviceId)
-        require(connection.descriptor.deviceId == deviceId) { "Driver opened a different device than requested." }
-        return connection
+        if (connection.descriptor.deviceId != deviceId) {
+            connection.close()
+            throw IllegalArgumentException("Driver opened a different device than requested.")
+        }
+        object : SdrReceiverConnection {
+            override val descriptor = connection.descriptor
+            override val capabilities = connection.capabilities
+            override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
+                capabilities.validate(request)
+                val capture = connection.capture(request)
+                SdrCaptureValidator.validate(request, capabilities, capture)
+                return capture
+            }
+            override fun close() = connection.close()
+        }
     }
 }
 
