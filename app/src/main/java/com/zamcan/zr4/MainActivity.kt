@@ -1566,7 +1566,7 @@ private fun AboutScreen() {
 
         Text(
             "This version combines the Observatory Glass interface with SQLite-backed session workflows and CSV metadata export. " +
-                "Android Wi-Fi scan snapshots are available with runtime permissions; Bluetooth Low Energy capture, live optical acquisition, real-sample plots, and external SDR integration remain to be implemented and verified.",
+                "Android Wi-Fi and Bluetooth Low Energy scan metadata are available with runtime permissions; physical handset behavior remains to be verified. Live optical acquisition, real-sample plots, and external SDR integration remain to be implemented.",
             color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
         )
     }

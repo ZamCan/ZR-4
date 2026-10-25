@@ -31,7 +31,7 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 - [x] SQLite database schema for sessions, observations, analysis runs, and findings
 - [x] Transactional writes, foreign keys, session-state checks, and deterministic metadata serialization
 - [x] Android instrumentation tests authored for database reopen, metadata serialization, provenance checks, closed sessions, and missing sessions
-- [ ] Successful local compile and execution of Android instrumentation tests still required
+- [x] GitHub Actions CI assembles the debug APK and executes JVM and emulator instrumentation tests for the integrated branch; physical handset validation is still required
 - [x] Compose session workspace wired to SQLite for create/list/inspect/close flows and non-measurement field notes
 - [x] CSV metadata exporter and document-picker save flow, with JVM tests authored
 - [x] Android Wi-Fi scan-result and bounded Bluetooth LE metadata capture adapters are wired to local sessions; physical-device validation remains required
