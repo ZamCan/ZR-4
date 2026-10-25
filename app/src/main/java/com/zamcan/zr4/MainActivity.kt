@@ -647,7 +647,7 @@ private fun OverviewScreen(
 }
 
 @Composable
-private fun StatusHero(onExploreSources: () -> Unit) {
+private fun StatusHero(hasMeasurement: Boolean, onExploreSources: () -> Unit) {
     GlassPanel(accent = Gold, shape = RoundedCornerShape(28.dp), padding = 0.dp) {
         Box {
             Canvas(Modifier.fillMaxSize()) {
@@ -664,12 +664,12 @@ private fun StatusHero(onExploreSources: () -> Unit) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Eyebrow("SYSTEM READINESS")
-                    GlassChip(Gold, "STANDBY")
+                    GlassChip(if (hasMeasurement) Mint else Gold, if (hasMeasurement) "ANALYSED" else "STANDBY")
                 }
-                Text("No measurement source connected", fontSize = 21.sp, fontWeight = FontWeight.Black, lineHeight = 27.sp)
+                Text(if (hasMeasurement) "Latest analysed capture available" else "No measurement source connected", fontSize = 21.sp, fontWeight = FontWeight.Black, lineHeight = 27.sp)
                 Text(
-                    "The interface is ready to configure. Live acquisition remains unavailable until a " +
-                        "supported observation source is implemented and connected.",
+                    if (hasMeasurement) "A computed spectrum is available from the latest imported or RTL-TCP capture. It is not a live continuous display." else
+                        "The interface is ready to configure. A real spectrum requires imported samples or a compatible RTL-TCP receiver.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -697,14 +697,14 @@ private fun spectrumStateFor(selectedSource: String): Triple<String, String, Str
             "No optical samples have been acquired",
         )
         "Wi-Fi and Bluetooth" -> Triple(
-            "NOT IMPLEMENTED",
-            "Selected: Wi-Fi and Bluetooth — not implemented in this build",
-            "No Wi-Fi or Bluetooth observations have been acquired",
+            "AVAILABLE · LIMITED",
+            "Selected: Wi-Fi/BLE metadata observations; not a spectrum source",
+            "Wi-Fi/BLE observations are metadata only and cannot produce an RF spectrum",
         )
         "External SDR" -> Triple(
-            "HARDWARE REQUIRED",
-            "Selected: External SDR — a compatible receiver is required",
-            "No receiver is connected, so no spectrum can be plotted",
+            "RTL-TCP NETWORK",
+            "Selected: External SDR — configure a reachable rtl_tcp server in Sessions",
+            "No spectrum appears until a compatible remote receiver supplies real I/Q samples",
         )
         else -> Triple(
             "NO SOURCE",
@@ -810,7 +810,7 @@ private fun SpectrumPanel(selectedSource: String, frame: SpectrumFrame?) {
         )
         val firstHz = frame?.binFrequenciesHz?.firstOrNull()
         val lastHz = frame?.binFrequenciesHz?.lastOrNull()
-        val frequencyRange = if (firstHz == null || lastHz == null) "—" else if (frame.centerFrequencyHz == null) {
+        val frequencyRange = if (firstHz == null || lastHz == null) "—" else if (frame?.centerFrequencyHz == null) {
             "${"%.1f".format(Locale.ROOT, firstHz / 1_000.0)}–${"%.1f".format(Locale.ROOT, lastHz / 1_000.0)} kHz offset"
         } else {
             "${"%.3f".format(Locale.ROOT, firstHz / 1_000_000.0)}–${"%.3f".format(Locale.ROOT, lastHz / 1_000_000.0)} MHz"
@@ -911,7 +911,12 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             Text(selectedSource, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
             Text(
-                "This module is a planning and interface selection only. Acquisition is not active in this build.",
+                when (selectedSource) {
+                    "Wi-Fi and Bluetooth" -> "Wi-Fi scan snapshots and bounded BLE metadata observations are available in Sessions. They are not continuous spectrum or raw I/Q."
+                    "External SDR" -> "Use Sessions to connect to a reachable rtl_tcp server and capture real I/Q. Direct USB acquisition and physical receiver validation remain pending."
+                    "Measurement sessions" -> "Create an open session to record Wi-Fi/BLE metadata, import normalized sample files, or capture from a configured RTL-TCP endpoint."
+                    else -> "Optical sampling is not implemented yet. This module does not fabricate observations."
+                },
                 color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
             )
         }

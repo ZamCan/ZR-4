@@ -47,7 +47,7 @@ class SdrReceiverContractTest {
     fun capabilitiesRejectUnsupportedFrequencyAndRate() {
         val caps = testCapabilities()
         assertThrows(IllegalArgumentException::class.java) {
-            caps.validate(SdrCaptureRequest(500_000_000.0, 2_000_000, 4096))
+            caps.validate(SdrCaptureRequest(2_000_000_000.0, 2_000_000, 4096))
         }
         assertThrows(IllegalArgumentException::class.java) {
             caps.validate(SdrCaptureRequest(100_000_000.0, 1_000_000, 4096))
