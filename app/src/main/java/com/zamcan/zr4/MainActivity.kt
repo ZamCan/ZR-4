@@ -1344,7 +1344,7 @@ private fun SessionsScreen() {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "The saved timestamp will be the import time because this flow does not yet collect the original capture timestamp. Results are dBFS, not calibrated dBm.",
+                        "The saved timestamp is the import time because the original capture timestamp is not collected here. Results are dBFS, not calibrated dBm. Real-sample frequency bins are baseband offsets; the center-frequency field is metadata only for real samples. Complex I/Q bins are centered around the entered center frequency.",
                         color = Amber, fontSize = 11.sp, lineHeight = 16.sp
                     )
                 }
