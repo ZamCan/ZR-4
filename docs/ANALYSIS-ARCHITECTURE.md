@@ -27,7 +27,7 @@ Two paths are kept distinct:
 - The real-sample FFT returns a one-sided spectrum from zero to the Nyquist frequency. Its bins are baseband offsets; a tuned center frequency is retained as metadata but is not added to these bins.
 - The complex-I/Q FFT returns a two-sided centered spectrum from center frequency minus half the sample rate (inclusive) to center frequency plus half the sample rate (exclusive). It requires equal-length finite I/Q arrays and a center frequency that keeps the represented RF bins non-negative.
 
-Both paths report relative dBFS amplitudes, not calibrated dBm or dBm/Hz. Absolute power requires a documented, validated receiver calibration path. The complex-I/Q engine accepts sample arrays but does not discover or acquire SDR hardware by itself.
+Both paths report relative dBFS amplitudes, not calibrated dBm or dBm/Hz. Absolute power requires a documented, validated receiver calibration path. The complex-I/Q engine accepts sample arrays but does not discover hardware by itself. The coordinator now accepts an explicitly opened SDR connection, validates the returned capture against the request, creates an `EXTERNAL_SDR` observation, and sends the in-memory I/Q arrays through the same deterministic analysis and transactional persistence path. It does not bundle a physical USB/network driver, persist raw samples, or claim verified calibration. The caller retains responsibility for closing the connection.
 
 ## Imported normalized sample files
 
@@ -47,7 +47,7 @@ The Sessions screen can run a bounded five-second Android BLE scan after the req
 
 The pure Kotlin receiver contract defines explicit driver registration, device discovery, capability declarations, bounded capture requests, normalized complex-I/Q payload validation, and capture metadata checks. A registry with no registered driver returns no devices; it never synthesizes receiver data. Each driver must declare its supported frequency range and discrete sample rates, and capture metadata must match the requested center frequency, sample rate, and sample count. The capture object defensively copies sample arrays and validates finite normalized values in [-1, 1]. A calibration label is descriptive metadata, not proof of calibration.
 
-This is an integration boundary only: no USB/network SDR driver is bundled, no receiver is currently acquired through this contract, and no hardware capability is inferred from a USB vendor/product ID. Driver-specific discovery, permissions, configuration, and physical-device validation remain separate work.
+This is an integration boundary plus a driver-to-analysis adapter: no USB/network SDR driver is bundled, and no hardware capability is inferred from a USB vendor/product ID. A registered driver connection can feed validated I/Q into the analysis pipeline, but actual receiver discovery and physical capture remain driver-specific and unvalidated until a compatible receiver is tested. Driver-specific discovery, permissions, configuration, and physical-device validation remain separate work.
 
 ## Verification boundary
 
@@ -56,7 +56,7 @@ GitHub Actions has successfully assembled the debug APK and run both JVM tests a
 ## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
-- External SDR discovery, driver support, sample acquisition, and hardware validation.
+- External SDR driver implementation, USB/network device discovery, and physical hardware validation.
 - Physical handset validation of Android Wi-Fi/BLE permission behavior, scan throttling, and hardware availability.
 - USB SDR discovery, acquisition, and a verified raw-sample-to-analysis UI workflow.
 

@@ -7,6 +7,12 @@ import com.zamcan.zr4.engine.*
 import com.zamcan.zr4.importer.ImportedSampleMetadata
 import com.zamcan.zr4.importer.ImportedSampleObservationFactory
 import com.zamcan.zr4.importer.NormalizedSampleCsvImporter
+import com.zamcan.zr4.receiver.NormalizedComplexIqCapture
+import com.zamcan.zr4.receiver.ReceiverTransport
+import com.zamcan.zr4.receiver.SdrCaptureRequest
+import com.zamcan.zr4.receiver.SdrReceiverCapabilities
+import com.zamcan.zr4.receiver.SdrReceiverConnection
+import com.zamcan.zr4.receiver.SdrReceiverDescriptor
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -73,6 +79,55 @@ class RfAnalysisCoordinatorTest {
         assertEquals(result.provenance.findings.size, saved.findings.size)
         assertTrue(saved.findings.all { it.analysisRunId == "run-import-iq" })
         assertTrue(saved.analysisRuns.single().parameters["frequencyInterpretation"]!!.contains("centered complex-I/Q"))
+    }
+
+    @Test fun realDriverCaptureFlowsIntoAnalysisAndTransactionalPersistence() {
+        val now = System.currentTimeMillis()
+        val session = ObservationSession("session-sdr-capture", "SDR capture test", now - 10_000L)
+        val n = 1024
+        val sampleRate = 8192L
+        val centerFrequency = 100_000_000.0
+        val connection = object : SdrReceiverConnection {
+            override val descriptor = SdrReceiverDescriptor(
+                "test-device", "Test SDR fixture", ReceiverTransport.OTHER
+            )
+            override val capabilities = SdrReceiverCapabilities(
+                minimumFrequencyHz = 24_000_000.0,
+                maximumFrequencyHz = 1_700_000_000.0,
+                supportedSampleRatesHz = setOf(sampleRate),
+                supportsComplexIq = true
+            )
+            override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
+                capabilities.validate(request)
+                return NormalizedComplexIqCapture(
+                    DoubleArray(n) { i -> if (i == 1) 0.5 else 0.0 },
+                    DoubleArray(n) { i -> if (i == 2) -0.5 else 0.0 },
+                    request.centerFrequencyHz, request.sampleRateHz,
+                    now - 2_000L, now - 1_000L, "Test SDR fixture"
+                )
+            }
+            override fun close() = Unit
+        }
+        store.createSession(session)
+
+        val result = RfAnalysisCoordinator(store).captureAndAnalyzeSdr(
+            sessionId = session.id,
+            connection = connection,
+            request = SdrCaptureRequest(centerFrequency, sampleRate, n),
+            observationId = "observation-live-driver-contract",
+            runId = "run-live-driver-contract"
+        )
+
+        val saved = store.loadSession(session.id)!!
+        assertEquals(ObservationSourceType.EXTERNAL_SDR, result.observation.sourceType)
+        assertEquals(ObservationRecordState.UNCALIBRATED, result.observation.state)
+        assertEquals(n, result.observation.sampleCount)
+        assertEquals(1, saved.observations.size)
+        assertEquals(AnalysisRunOutcome.SUCCESS, saved.analysisRuns.single().outcome)
+        assertEquals(result.analysis.provenance.findings.size, saved.findings.size)
+        assertEquals("two-sided centered complex-I/Q RF bins",
+            saved.analysisRuns.single().parameters["frequencyInterpretation"])
+        assertTrue(saved.observations.single().notes.any { it.contains("not stored") })
     }
 
     @Test fun failedFindingInsertRollsBackTheEntireAnalysisTransaction() {
