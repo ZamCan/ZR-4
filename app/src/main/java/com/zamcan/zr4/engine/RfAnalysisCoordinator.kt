@@ -14,7 +14,7 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         samples: DoubleArray,
         window: WindowFunction = WindowFunction.HANN,
         config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
@@ -32,7 +32,7 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         iSamples: DoubleArray,
         qSamples: DoubleArray,
         window: WindowFunction = WindowFunction.HANN,
@@ -52,7 +52,7 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         samples: DoubleArray,
         config: BurstDetectionConfig = BurstDetectionConfig()
     ): RfAnalysisPipelineResult {
@@ -73,7 +73,7 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         observation: ObservationRecord,
         runId: String,
         startedAtEpochMillis: Long,
-        completedAtEpochMillis: Long,
+        completedAtEpochMillis: Long? = null,
         payload: NormalizedSamplePayload,
         window: WindowFunction = WindowFunction.HANN,
         config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
