@@ -1020,9 +1020,7 @@ private fun SessionsScreen() {
     val wifiPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
-        val required = if (Build.VERSION.SDK_INT >= 33) {
-            listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES)
-        } else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        val required = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
         if (required.all { grants[it] == true ||
                 ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) {
             collectWifiSnapshot()
@@ -1031,12 +1029,7 @@ private fun SessionsScreen() {
         }
     }
 
-    val wifiPermissions = remember {
-        if (Build.VERSION.SDK_INT >= 33) arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.NEARBY_WIFI_DEVICES
-        ) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
+    val wifiPermissions = remember { arrayOf(Manifest.permission.ACCESS_FINE_LOCATION) }
 
 
     fun collectBluetoothLe() {

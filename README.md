@@ -34,7 +34,8 @@ ZR 4 is an offline-first native Android workspace for optical observations, Andr
 - [ ] Successful local compile and execution of Android instrumentation tests still required
 - [x] Compose session workspace wired to SQLite for create/list/inspect/close flows and non-measurement field notes
 - [x] CSV metadata exporter and document-picker save flow, with JVM tests authored
-- [ ] Live Android radio acquisition and external SDR capture remain future integrations
+- [x] Android Wi-Fi scan-result and bounded Bluetooth LE metadata capture adapters are wired to local sessions; physical-device validation remains required
+- [ ] External SDR capture remains a future integration
 
 Raw IQ/sample payloads are intentionally not stored in the metadata database. Unknown schema migrations fail explicitly rather than silently dropping data. Detector outputs are candidates, not proof of emitter identity. Spectrum levels are dBFS unless a calibrated acquisition path establishes another unit.
 
@@ -73,7 +74,7 @@ Run the Android instrumentation tests on a connected device/emulator:
 ./tools/build.sh connectedDebugAndroidTest
 ```
 
-The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. This branch's integration remains pending those checks.
+The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. The engineering branch has passed CI runs for the analysis pipeline and Wi-Fi session integration; the latest BLE integration is undergoing CI validation. Physical handset validation remains separate.
 
 ## Staged roadmap
 

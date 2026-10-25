@@ -37,14 +37,17 @@ The pure Kotlin CSV importer accepts only two explicit headers: `sample` for nor
 
 ## Android Wi-Fi scan snapshots
 
-The Sessions screen can record the handset's currently available Android Wi-Fi scan results after runtime permissions are granted. The app does not force a fresh scan; Android may throttle scanning or return empty/stale results due to OS policy, location settings, radio state, or device restrictions. The record stores aggregate result count, reported strongest RSSI, observed frequencies, result freshness, and limitations. SSIDs and BSSIDs are not persisted. These discrete scan summaries are not continuous RF spectrum, raw IQ, calibrated receiver power, or inputs to the normalized-sample analysis pipeline.
+The Sessions screen can record the handset's currently available Android Wi-Fi scan results after the Android location permission is granted (required by the platform scan-results API even though this feature does not read or store the handset location). The app does not force a fresh scan; Android may throttle scanning or return empty/stale results due to OS policy, location settings, radio state, or device restrictions. The record stores aggregate result count, reported strongest RSSI, observed frequencies, result freshness, and limitations. SSIDs and BSSIDs are not persisted. These discrete scan summaries are not continuous RF spectrum, raw IQ, calibrated receiver power, or inputs to the normalized-sample analysis pipeline.
+
+## Bluetooth Low Energy scan observations
+
+The Sessions screen can run a bounded five-second Android BLE scan after the required Bluetooth runtime permissions are granted. Records include the number of scan-result callbacks and strongest handset-reported RSSI, when available. The callback count is not a count of unique physical devices. Device addresses, advertised names, and payloads are not retained. The manifest marks BLE scanning as never-for-location; Android may filter some beacon types. BLE observations are not raw IQ or continuous RF spectrum. Physical-device behavior remains to be validated.
 
 ## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
-- Android Bluetooth Low Energy acquisition and scan lifecycle.
 - External SDR discovery, driver support, sample acquisition, and hardware validation.
 - Device/emulator execution of the Android SQLite instrumentation tests.
-- A complete UI workflow that acquires supported source data and invokes the coordinator.
+- USB SDR discovery, acquisition, and a verified raw-sample-to-analysis UI workflow.
 
 Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition. Android Wi-Fi scan metadata is not passed to the normalized-sample analysis pipeline.

@@ -62,6 +62,40 @@ class LocalObservationDatabaseTest {
     }
 
     @Test
+    fun testAndroidBluetoothObservationMetadataSurvivesDatabaseReopen() {
+        store.createSession(session())
+        val radioObservation = ObservationRecord(
+            id = "ble-snapshot-1",
+            sourceType = ObservationSourceType.ANDROID_BLUETOOTH,
+            capturedAtEpochMillis = 1_800_000_001_500L,
+            unit = ObservationDataUnit.RSSI_DBM,
+            state = ObservationRecordState.VALID,
+            sampleCount = 7,
+            hardwareDescription = "Android handset radio API",
+            acquisitionConfig = mapOf(
+                "scan_window_ms" to "5000",
+                "scan_complete" to "true",
+                "strongest_rssi_dbm" to "-61"
+            ),
+            notes = listOf(
+                "BLE scan-result callbacks, not unique devices.",
+                "Device addresses, names, and advertisement payloads are not retained."
+            )
+        )
+        store.addObservation("session-1", radioObservation)
+        store.close()
+        store = LocalObservationDatabase(context)
+
+        val saved = store.loadSession("session-1")!!.observations.single()
+        assertEquals(ObservationSourceType.ANDROID_BLUETOOTH, saved.sourceType)
+        assertEquals(7, saved.sampleCount)
+        assertEquals(ObservationDataUnit.RSSI_DBM, saved.unit)
+        assertEquals("-61", saved.acquisitionConfig["strongest_rssi_dbm"])
+        assertTrue(saved.notes.any { it.contains("not unique devices") })
+        assertTrue(saved.notes.none { it.contains("address=") || it.contains("device_name=") })
+    }
+
+    @Test
     fun testRejectsFindingLinkedToDifferentObservation() {
         store.createSession(session())
         store.addObservation("session-1", observation())

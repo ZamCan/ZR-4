@@ -99,10 +99,6 @@ class AndroidRadioObservationCollector(private val context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return Manifest.permission.ACCESS_FINE_LOCATION
         }
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.NEARBY_WIFI_DEVICES) != PackageManager.PERMISSION_GRANTED) {
-            return Manifest.permission.NEARBY_WIFI_DEVICES
-        }
         return null
     }
 
@@ -151,12 +147,13 @@ class AndroidRadioObservationCollector(private val context: Context) {
         }
         val manager = context.applicationContext.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
         val adapter = try { manager?.adapter } catch (_: SecurityException) { null }
+        val bluetoothEnabled = try { adapter?.isEnabled == true } catch (_: SecurityException) { false }
         val scanner = try { adapter?.bluetoothLeScanner } catch (_: SecurityException) { null }
-        if (adapter == null || scanner == null) {
+        if (adapter == null || !bluetoothEnabled || scanner == null) {
             onComplete(BluetoothSummary(
                 observation(ObservationSourceType.ANDROID_BLUETOOTH, startedAt, ObservationDataUnit.COUNT,
                     ObservationRecordState.INCOMPLETE, 0, listOf("Bluetooth LE scanner unavailable")),
-                0, null, "Bluetooth LE scanning is unavailable or the radio is disabled."
+                0, null, "Bluetooth LE scanning is unavailable or Bluetooth is disabled."
             ))
             return {}
         }
