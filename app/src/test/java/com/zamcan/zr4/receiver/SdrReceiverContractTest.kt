@@ -45,7 +45,7 @@ class SdrReceiverContractTest {
 
     @Test
     fun capabilitiesRejectUnsupportedFrequencyAndRate() {
-        val caps = capabilities()
+        val caps = testCapabilities()
         assertThrows(IllegalArgumentException::class.java) {
             caps.validate(SdrCaptureRequest(500_000_000.0, 2_000_000, 4096))
         }
@@ -108,11 +108,11 @@ class SdrReceiverContractTest {
             101_000_000.0, 2_000_000, 1000, 1100, "Test receiver"
         )
         assertThrows(IllegalArgumentException::class.java) {
-            SdrCaptureValidator.validate(request, capabilities(), capture)
+            SdrCaptureValidator.validate(request, testCapabilities(), capture)
         }
     }
 
-    private fun capabilities() = SdrReceiverCapabilities(
+    private fun testCapabilities() = SdrReceiverCapabilities(
         minimumFrequencyHz = 24_000_000.0,
         maximumFrequencyHz = 1_700_000_000.0,
         supportedSampleRatesHz = setOf(2_000_000L, 2_400_000L),
@@ -127,7 +127,7 @@ class SdrReceiverContractTest {
             require(deviceId == descriptor.deviceId)
             return object : SdrReceiverConnection {
                 override val descriptor = this@FakeDriver.descriptor
-                override val capabilities = capabilities()
+                override val capabilities = testCapabilities()
                 override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
                     capabilities.validate(request)
                     return NormalizedComplexIqCapture(
