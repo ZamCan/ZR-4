@@ -185,6 +185,9 @@ class LocalObservationDatabase(context: Context) :
         require(run.outcome != AnalysisRunOutcome.NO_FINDINGS || analysis.findings.isEmpty()) {
             "A NO_FINDINGS run cannot contain findings."
         }
+        require(run.outcome == AnalysisRunOutcome.SUCCESS || analysis.findings.isEmpty()) {
+            "Only successful analysis runs can contain findings."
+        }
         require(run.outcome != AnalysisRunOutcome.SUCCESS || analysis.findings.isNotEmpty()) {
             "A SUCCESS run must contain at least one finding; use NO_FINDINGS otherwise."
         }
