@@ -601,7 +601,7 @@ private fun OverviewScreen(
             )
         }
 
-        StatusHero(onExploreSources)
+        StatusHero(hasMeasurement = spectrumFrame != null, onExploreSources = onExploreSources)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionHeading("SPECTRUM", if (spectrumFrame == null) spectrumStateFor(selectedSource).first else "ANALYSED INPUT")
