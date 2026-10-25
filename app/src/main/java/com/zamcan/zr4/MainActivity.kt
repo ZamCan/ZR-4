@@ -1,9 +1,13 @@
 package com.zamcan.zr4
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -36,9 +40,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +70,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.zamcan.zr4.engine.ObservationSession
+import com.zamcan.zr4.engine.ObservationSessionSnapshot
+import com.zamcan.zr4.engine.ObservationSessionState
+import com.zamcan.zr4.export.SessionCsvExporter
+import com.zamcan.zr4.storage.LocalObservationDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 /**
  * ZR 4 - ZamCan RF Observatory
@@ -571,7 +591,7 @@ private fun OverviewScreen(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "Receiver-dependent RF data", "HARDWARE REQUIRED", Modifier.weight(1f))
-                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV", "IN DEVELOPMENT", Modifier.weight(1f))
+                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV export", "STORAGE READY", Modifier.weight(1f))
                         }
                     }
                 } else {
@@ -579,7 +599,7 @@ private fun OverviewScreen(
                         SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT")
                         SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Only observations exposed by Android", "IN DEVELOPMENT")
                         SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED")
-                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and export", "IN DEVELOPMENT")
+                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY")
                     }
                 }
             }
@@ -802,8 +822,7 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
                 "permission handling, and a validated receiver pipeline. No RF readings are available without it.",
             selectedSource == "External SDR") { onSelectSource("External SDR") }
         SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "STORAGE READY",
-            "The local SQLite engine stores session metadata, observations, analysis runs, findings, evidence, and limitations. " +
-                "The screen is not yet connected to it, and CSV export is not implemented.",
+            "Create and close sessions, inspect persisted observations and findings, and export traceable session metadata to CSV. Raw sample payloads are not stored.",
             selectedSource == "Measurement sessions") { onSelectSource("Measurement sessions") }
 
         GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 17.dp) {
@@ -865,56 +884,251 @@ private fun SourceDetailCard(
 
 @Composable
 private fun SessionsScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val database = remember(context) { LocalObservationDatabase(context) }
+    var sessions by remember { mutableStateOf<List<ObservationSession>>(emptyList()) }
+    var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    var selectedSnapshot by remember { mutableStateOf<ObservationSessionSnapshot?>(null) }
+    var feedback by remember { mutableStateOf("Loading local session records…") }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+
+    val createCsvDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        val csv = pendingCsv
+        if (uri == null || csv == null) {
+            feedback = "CSV export cancelled."
+        } else {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val output = requireNotNull(context.contentResolver.openOutputStream(uri)) {
+                            "Android could not open the selected destination."
+                        }
+                        output.bufferedWriter(Charsets.UTF_8).use { it.write(csv) }
+                    }
+                    feedback = "CSV exported successfully. The file contains persisted metadata, not raw IQ samples."
+                } catch (error: Exception) {
+                    feedback = "CSV export failed: ${error.message ?: "unknown error"}"
+                } finally {
+                    pendingCsv = null
+                }
+            }
+        }
+    }
+
+    fun refreshSessions() {
+        scope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) { database.listSessions() }
+                sessions = loaded
+                val id = selectedSessionId
+                selectedSnapshot = if (id == null) null else withContext(Dispatchers.IO) {
+                    database.loadSession(id)
+                }
+                feedback = if (loaded.isEmpty()) {
+                    "No sessions yet. Start a session to create a local record."
+                } else {
+                    "${loaded.size} session(s) stored on this device."
+                }
+            } catch (error: Exception) {
+                feedback = "Could not load local sessions: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    DisposableEffect(database) {
+        onDispose { database.close() }
+    }
+    LaunchedEffect(database) { refreshSessions() }
+
+    fun startSession() {
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val title = "Observation " + SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(now))
+            val session = ObservationSession(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                startedAtEpochMillis = now
+            )
+            try {
+                withContext(Dispatchers.IO) { database.createSession(session) }
+                selectedSessionId = session.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(session.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                feedback = "Session started and saved locally."
+            } catch (error: Exception) {
+                feedback = "Could not start session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun closeSession(sessionId: String) {
+        scope.launch {
+            try {
+                val snapshot = withContext(Dispatchers.IO) {
+                    database.closeSession(sessionId, System.currentTimeMillis())
+                }
+                selectedSessionId = sessionId
+                selectedSnapshot = snapshot
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                feedback = "Session closed. Its records remain available for inspection and export."
+            } catch (error: Exception) {
+                feedback = "Could not close session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun selectSession(sessionId: String) {
+        selectedSessionId = sessionId
+        scope.launch {
+            try {
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(sessionId) }
+                feedback = if (selectedSnapshot == null) "Session no longer exists." else "Loaded persisted session details."
+            } catch (error: Exception) {
+                feedback = "Could not open session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun exportSession(sessionId: String) {
+        scope.launch {
+            try {
+                val snapshot = withContext(Dispatchers.IO) { database.loadSession(sessionId) }
+                    ?: error("The selected session could not be found.")
+                pendingCsv = SessionCsvExporter.export(snapshot)
+                val safeId = sessionId.take(8)
+                createCsvDocument.launch("ZR4-session-$safeId.csv")
+            } catch (error: Exception) {
+                pendingCsv = null
+                feedback = "Could not prepare CSV: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Eyebrow("OBSERVATORY / RECORDS", Stone)
             Text("Session workspace", fontSize = 26.sp, fontWeight = FontWeight.Black)
-            Text("A clear home for repeatable, traceable experiments.", color = Muted, fontSize = 13.sp)
+            Text("Create local records, inspect evidence, and export traceable session metadata.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
-        GlassPanel(accent = Stone, shape = RoundedCornerShape(26.dp), padding = 24.dp) {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(11.dp),
-            ) {
-                IconBadge(InstrumentIconKind.Layers, Stone, 60.dp)
-                Text("No sessions recorded", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Local SQLite persistence is present in the backend, but this screen is not connected to it yet. " +
-                        "No records are loaded here, so no placeholder sessions are shown.",
-                    color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
-                )
+
+        GlassPanel(accent = Stone, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(InstrumentIconKind.Layers, Stone, 46.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("On-device session storage", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("SQLite · offline-first · no cloud account", color = Muted, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            GoldButton("＋  Start observation session", ::startSession, Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            Text(feedback, color = if (feedback.contains("failed", ignoreCase = true) || feedback.contains("could not", ignoreCase = true)) Amber else Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+
+        SectionHeading("SAVED SESSIONS", "${sessions.size} RECORDS")
+        if (sessions.isEmpty()) {
+            GlassPanel(accent = Stone, shape = RoundedCornerShape(22.dp), padding = 22.dp) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    IconBadge(InstrumentIconKind.Layers, Stone, 54.dp)
+                    Text("No sessions recorded", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Start a session above. An empty session is real metadata; observations appear only after a supported source actually supplies them.", color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+                }
+            }
+        } else {
+            sessions.forEach { session ->
+                val isSelected = selectedSessionId == session.id
+                GlassPanel(
+                    accent = if (isSelected) Gold else Stone,
+                    shape = RoundedCornerShape(21.dp),
+                    padding = 15.dp
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                        IconBadge(InstrumentIconKind.Clock, if (session.state == ObservationSessionState.OPEN) Mint else Stone, 38.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(session.title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(session.startedAtEpochMillis)),
+                                color = Muted, fontSize = 11.sp
+                            )
+                            Text(
+                                if (session.state == ObservationSessionState.OPEN) "OPEN · can record new observations" else "CLOSED · read-only session",
+                                color = if (session.state == ObservationSessionState.OPEN) Mint else Stone,
+                                fontSize = 10.5.sp, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlassButton(if (isSelected) "Selected" else "Inspect", { selectSession(session.id) }, Modifier.weight(1f))
+                        GlassButton("Export CSV", { exportSession(session.id) }, Modifier.weight(1f))
+                    }
+                    if (session.state == ObservationSessionState.OPEN) {
+                        Spacer(Modifier.height(8.dp))
+                        GoldButton("Close session", { closeSession(session.id) }, Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
-        SectionHeading("FINDINGS", "EVIDENCE ONLY")
-        GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 18.dp) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(13.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                IconBadge(InstrumentIconKind.Crosshair, Gold, 44.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("No findings recorded", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Findings are created only from acquired samples with their source, time, " +
-                            "units and configuration recorded. Anything unverified is labelled " +
-                            "'candidate detected' — never a confirmed transmitter or protocol.",
-                        color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
+
+        selectedSnapshot?.let { snapshot ->
+            SectionHeading("SELECTED SESSION", "PERSISTED DATA")
+            GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 17.dp) {
+                Text(snapshot.session.title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("State: ${snapshot.session.state.name}", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricPill("Observations", snapshot.observations.size.toString())
+                    MetricPill("Analysis runs", snapshot.analysisRuns.size.toString())
+                    MetricPill("Findings", snapshot.findings.size.toString())
+                }
+                if (snapshot.observations.isEmpty() && snapshot.findings.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("This session has metadata only. No measurement or finding has been fabricated.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                }
+                snapshot.observations.forEach { observation ->
+                    Spacer(Modifier.height(10.dp))
+                    InfoRow(
+                        "${observation.sourceType.name} · ${observation.state.name}",
+                        "Captured ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(observation.capturedAtEpochMillis))}\nUnit: ${observation.unit.name}\n${observation.notes.joinToString(" · ").ifBlank { "No notes" }}",
+                        InstrumentIconKind.Radio, Mint
                     )
-                    Text(
-                        "Selecting a recorded finding will open its detail: frequency, level and " +
-                            "units, evidence, limitations, and the analysis run that produced it.",
-                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
+                }
+                snapshot.findings.forEach { finding ->
+                    Spacer(Modifier.height(10.dp))
+                    InfoRow(
+                        finding.kind,
+                        "Frequency: ${finding.frequencyHz?.let { "%.3f Hz".format(Locale.ROOT, it) } ?: "not available"}\nLevel: ${finding.level?.let { "%.2f".format(Locale.ROOT, it) } ?: "not available"} ${finding.unit.name}\nEvidence: ${finding.evidence.joinToString(" · ")}\nLimitations: ${finding.limitations.joinToString(" · ")}",
+                        InstrumentIconKind.Crosshair, Gold
                     )
                 }
             }
         }
-        SectionHeading("SESSION RECORD FIELDS", "ENGINE-DEFINED")
-        InfoRow("Timestamp", "Local time with explicit timezone handling", InstrumentIconKind.Clock, Mint)
-        InfoRow("Observation source", "Device / adapter and source type", InstrumentIconKind.Antenna, Amber)
-        InfoRow("Units and configuration", "Recorded alongside every measurement", InstrumentIconKind.Settings, Gold)
-        InfoRow("Analysis provenance", "Algorithm, version, parameters and outcome for every analysis run", InstrumentIconKind.Check, Mint)
-        InfoRow("Export", "CSV export is not implemented yet", InstrumentIconKind.Export, Stone)
+
+        SectionHeading("RECORD INTEGRITY", "EVIDENCE ONLY")
+        InfoRow("Timestamp", "Stored as epoch milliseconds and exported in UTC ISO-8601 format", InstrumentIconKind.Clock, Mint)
+        InfoRow("Source and units", "Stored with every observation; absent measurements remain absent", InstrumentIconKind.Antenna, Amber)
+        InfoRow("Analysis provenance", "Algorithm, version, parameters, outcome, evidence and limitations", InstrumentIconKind.Check, Gold)
+        InfoRow("CSV export", "Uses Android's document picker so the user chooses where the CSV file is saved", InstrumentIconKind.Export, Stone)
+        Text("Raw IQ/sample payloads are not stored in this database. Export includes persisted metadata and traceable findings only.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+}
+
+@Composable
+private fun MetricPill(label: String, value: String) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, GlassLine, RoundedCornerShape(13.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(value, color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        Text(label, color = Muted, fontSize = 10.sp, maxLines = 1)
     }
 }
 
@@ -956,9 +1170,8 @@ private fun AboutScreen() {
         InfoRow("Privacy", "Use authorized devices and respect local regulations", InstrumentIconKind.Lock, Stone)
 
         Text(
-            "This version combines the Observatory Glass interface and local SQLite persistence engine. " +
-                "Session screens are not yet wired to storage; acquisition, real-sample plots, CSV export, " +
-                "and hardware integrations still require implementation and verification.",
+            "This version combines the Observatory Glass interface with SQLite-backed session workflows and CSV metadata export. " +
+                "Live optical and Android radio acquisition, real-sample plots, and external SDR integration remain to be implemented and verified.",
             color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
         )
     }
