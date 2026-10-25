@@ -38,6 +38,8 @@ jobs:
       - name: Run JVM unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
+      # Publish the built APK as soon as compilation and JVM tests pass.
+      # Emulator boot or instrumentation stalls must not hide the debug artifact.
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -54,5 +56,5 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 300
           script: ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest
