@@ -144,6 +144,9 @@ object RfDetectionEngine {
     ): BurstDetectionResult {
         require(sampleRateHz.isFinite() && sampleRateHz > 0.0) { "Sample rate must be finite and positive." }
         require(samples.all { it.isFinite() }) { "Samples must not contain NaN or infinity." }
+        require(samples.all { it in -1.0..1.0 }) {
+            "Samples must be normalized to the supported range [-1, 1] for dBFS analysis."
+        }
         if (samples.isEmpty()) return BurstDetectionResult(null, null, emptyList(), 0)
 
         val blockCount = (samples.size + config.blockSize - 1) / config.blockSize
