@@ -918,6 +918,7 @@ private fun SessionsScreen() {
     var importCenterFrequency by remember { mutableStateOf("") }
     var showNoteDialog by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf("") }
+    var bluetoothScanInProgress by remember { mutableStateOf(false) }
 
     val createCsvDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -1034,6 +1035,55 @@ private fun SessionsScreen() {
         if (Build.VERSION.SDK_INT >= 33) arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.NEARBY_WIFI_DEVICES
+        ) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+
+    fun collectBluetoothLe() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before recording a Bluetooth observation."
+            return
+        }
+        if (bluetoothScanInProgress) {
+            feedback = "A Bluetooth scan is already running."
+            return
+        }
+        bluetoothScanInProgress = true
+        feedback = "Scanning for Bluetooth Low Energy advertisements for up to 5 seconds…"
+        AndroidRadioObservationCollector(context).collectBluetoothLe { summary ->
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) { database.addObservation(target.id, summary.observation) }
+                    selectedSessionId = target.id
+                    selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                    sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                    val strongest = summary.strongestRssiDbm?.let { " Strongest reported RSSI: " + it + " dBm." } ?: ""
+                    feedback = summary.statusMessage + " Saved " + summary.advertisementResultCount +
+                        " BLE scan result callback(s)." + strongest
+                } catch (error: Exception) {
+                    feedback = "Bluetooth observation could not be saved: " + (error.message ?: "unknown error")
+                } finally {
+                    bluetoothScanInProgress = false
+                }
+            }
+        }
+    }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val required = if (Build.VERSION.SDK_INT >= 31) listOf(
+            Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT
+        ) else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (required.all { grants[it] == true || ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) {
+            collectBluetoothLe()
+        } else feedback = "Bluetooth observation was not recorded because required permissions were denied."
+    }
+
+    val bluetoothPermissions = remember {
+        if (Build.VERSION.SDK_INT >= 31) arrayOf(
+            Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT
         ) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
@@ -1278,6 +1328,19 @@ private fun SessionsScreen() {
             )
             Text(
                 "Reads Android's existing Wi-Fi scan results; it does not force a fresh scan. Results may be throttled or stale. Network names and addresses are not saved. This is not an RF spectrum capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
+                if (bluetoothScanInProgress) "Scanning Bluetooth LE…" else "Record Bluetooth LE scan",
+                {
+                    val granted = bluetoothPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+                    if (granted) collectBluetoothLe() else bluetoothPermissionLauncher.launch(bluetoothPermissions)
+                },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Runs a bounded 5-second Bluetooth Low Energy scan. Counts scan-result callbacks, not unique devices. Device names, addresses, and advertisement payloads are not saved. This is not an RF spectrum capture.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp
             )
             Text(
