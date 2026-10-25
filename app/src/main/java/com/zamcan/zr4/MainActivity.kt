@@ -2,6 +2,9 @@ package com.zamcan.zr4
 
 import android.os.Bundle
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -73,6 +76,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.zamcan.zr4.engine.ObservationSession
 import com.zamcan.zr4.engine.ObservationRecord
 import com.zamcan.zr4.engine.ObservationRecordState
@@ -89,6 +93,7 @@ import com.zamcan.zr4.importer.ImportedSampleMetadata
 import com.zamcan.zr4.importer.ImportedSampleObservationFactory
 import com.zamcan.zr4.importer.NormalizedSampleCsvImporter
 import com.zamcan.zr4.importer.NormalizedSamplePayload
+import com.zamcan.zr4.radio.AndroidRadioObservationCollector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -611,7 +616,7 @@ private fun OverviewScreen(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT")
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Only observations exposed by Android", "IN DEVELOPMENT")
+                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi scan snapshots; BLE capture still pending", "WI-FI SNAPSHOT")
                         SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED")
                         SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY")
                     }
@@ -985,6 +990,53 @@ private fun SessionsScreen() {
         }
     }
 
+    fun collectWifiSnapshot() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before recording a Wi-Fi snapshot."
+            return
+        }
+        scope.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) {
+                    AndroidRadioObservationCollector(context).collectWifiSnapshot()
+                }
+                withContext(Dispatchers.IO) { database.addObservation(target.id, summary.observation) }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                val strongest = summary.strongestRssiDbm?.let { " Strongest reported RSSI: " + it + " dBm." } ?: ""
+                val bands = if (summary.frequenciesMhz.isEmpty()) "" else
+                    " Observed frequencies (MHz): " + summary.frequenciesMhz.joinToString(", ") + "."
+                feedback = summary.statusMessage + " Recorded observation metadata. Result count: " +
+                    summary.networkCount + "." + strongest + bands
+            } catch (error: Exception) {
+                feedback = "Wi-Fi snapshot could not be saved: " + (error.message ?: "unknown error")
+            }
+        }
+    }
+
+    val wifiPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val required = if (Build.VERSION.SDK_INT >= 33) {
+            listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES)
+        } else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (required.all { grants[it] == true ||
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) {
+            collectWifiSnapshot()
+        } else {
+            feedback = "Wi-Fi observation was not recorded because required permissions were denied."
+        }
+    }
+
+    val wifiPermissions = remember {
+        if (Build.VERSION.SDK_INT >= 33) arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.NEARBY_WIFI_DEVICES
+        ) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
     fun saveAndAnalyzeImport() {
         val target = selectedSnapshot?.session
         val payload = pendingImportPayload
@@ -1212,6 +1264,21 @@ private fun SessionsScreen() {
                 "Import normalized sample CSV",
                 { openSampleDocument.launch(arrayOf("text/*", "application/*")) },
                 Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
+                "Record Wi-Fi scan snapshot",
+                {
+                    val permissionsGranted = wifiPermissions.all {
+                        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+                    }
+                    if (permissionsGranted) collectWifiSnapshot() else wifiPermissionLauncher.launch(wifiPermissions)
+                },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Reads Android's existing Wi-Fi scan results; it does not force a fresh scan. Results may be throttled or stale. Network names and addresses are not saved. This is not an RF spectrum capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
             )
             Text(
                 "Accepts normalized real samples (sample) or complex I/Q pairs (i,q). The file must contain finite values in [-1, 1], with a power-of-two sample count. Import does not mean live capture.",
@@ -1443,7 +1510,7 @@ private fun AboutScreen() {
 
         Text(
             "This version combines the Observatory Glass interface with SQLite-backed session workflows and CSV metadata export. " +
-                "Live optical and Android radio acquisition, real-sample plots, and external SDR integration remain to be implemented and verified.",
+                "Android Wi-Fi scan snapshots are available with runtime permissions; Bluetooth Low Energy capture, live optical acquisition, real-sample plots, and external SDR integration remain to be implemented and verified.",
             color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
         )
     }

@@ -1,7 +1,6 @@
 package com.zamcan.zr4.radio
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
@@ -57,6 +56,8 @@ class AndroidRadioObservationCollector(private val context: Context) {
                 "Android Wi-Fi scan-result metadata; not continuous RF spectrum.",
                 if (fresh) "Results are recent." else "Results may be stale or have no usable timestamp.",
                 "RSSI is handset-reported and is not calibrated receiver spectrum power.",
+                strongest?.let { "Strongest observed RSSI: " + it + " dBm." } ?: "No RSSI value available.",
+                if (frequencies.isEmpty()) "No Wi-Fi frequencies reported." else "Observed frequencies in MHz: " + frequencies.joinToString(", ") + ".",
                 "Network identifiers are not persisted."
             )
             WifiSummary(
@@ -66,8 +67,13 @@ class AndroidRadioObservationCollector(private val context: Context) {
                     if (results.isEmpty()) ObservationRecordState.INCOMPLETE
                     else if (fresh) ObservationRecordState.VALID else ObservationRecordState.STALE,
                     results.size, notes,
-                    mapOf("result_age_ms" to ageMillis.toString(), "fresh" to fresh.toString(),
-                        "frequency_count" to frequencies.size.toString())
+                    mapOf(
+                        "result_age_ms" to ageMillis.toString(),
+                        "fresh" to fresh.toString(),
+                        "frequency_count" to frequencies.size.toString(),
+                        "strongest_rssi_dbm" to (strongest?.toString() ?: ""),
+                        "frequencies_mhz" to frequencies.joinToString(",")
+                    )
                 ),
                 networkCount = results.size,
                 strongestRssiDbm = strongest,

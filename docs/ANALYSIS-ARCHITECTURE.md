@@ -35,12 +35,16 @@ The pure Kotlin CSV importer accepts only two explicit headers: `sample` for nor
 
 `ImportedSampleObservationFactory` creates metadata marked as imported and uncalibrated. A supplied calibration identifier is recorded as a user-provided label, not proof of verified calibration. The sample payload remains separate from the metadata database. The Sessions screen now provides a Storage Access Framework file picker, bounded UTF-8 reading, explicit sample-rate and (for I/Q) center-frequency entry, and a deterministic import-to-analysis path into an open local session. The workflow records the import time—not a claimed original capture time—and explains this limitation. Raw sample arrays remain in memory for the current analysis operation and are not persisted by the metadata database.
 
+## Android Wi-Fi scan snapshots
+
+The Sessions screen can record the handset's currently available Android Wi-Fi scan results after runtime permissions are granted. The app does not force a fresh scan; Android may throttle scanning or return empty/stale results due to OS policy, location settings, radio state, or device restrictions. The record stores aggregate result count, reported strongest RSSI, observed frequencies, result freshness, and limitations. SSIDs and BSSIDs are not persisted. These discrete scan summaries are not continuous RF spectrum, raw IQ, calibrated receiver power, or inputs to the normalized-sample analysis pipeline.
+
 ## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
-- Android Wi-Fi and Bluetooth observations using the actual permissions and operating-system APIs.
+- Android Bluetooth Low Energy acquisition and scan lifecycle.
 - External SDR discovery, driver support, sample acquisition, and hardware validation.
 - Device/emulator execution of the Android SQLite instrumentation tests.
 - A complete UI workflow that acquires supported source data and invokes the coordinator.
 
-Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition.
+Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition. Android Wi-Fi scan metadata is not passed to the normalized-sample analysis pipeline.
