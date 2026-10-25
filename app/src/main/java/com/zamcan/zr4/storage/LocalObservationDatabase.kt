@@ -13,6 +13,7 @@ import com.zamcan.zr4.engine.ObservationRecordState
 import com.zamcan.zr4.engine.ObservationSession
 import com.zamcan.zr4.engine.ObservationSessionSnapshot
 import com.zamcan.zr4.engine.ObservationSessionState
+import com.zamcan.zr4.engine.ProvenancedAnalysis
 import com.zamcan.zr4.engine.ObservationSourceType
 import com.zamcan.zr4.engine.TraceableFinding
 import java.nio.charset.StandardCharsets
@@ -159,6 +160,44 @@ class LocalObservationDatabase(context: Context) :
                 "Findings can only be attached to a successful analysis run."
             }
             insertOrThrow("findings", null, finding.toValues(sessionId))
+        }
+    }
+
+    /**
+     * Atomically persists a completed analysis run and all its findings.
+     * If any relationship or insert fails, SQLite rolls back the entire write.
+     * Raw sample payloads remain outside this metadata database.
+     */
+    @Synchronized
+    fun saveAnalysis(sessionId: String, analysis: ProvenancedAnalysis) {
+        val run = analysis.run
+        require(run.outcome != AnalysisRunOutcome.RUNNING) {
+            "Only completed analysis runs can be persisted as final results."
+        }
+        require(run.completedAtEpochMillis != null) {
+            "A persisted analysis run must have a completion timestamp."
+        }
+        require(analysis.findings.all {
+            it.observationId == run.observationId && it.analysisRunId == run.id
+        }) {
+            "Every finding must reference the analysis run and observation being saved."
+        }
+        require(run.outcome != AnalysisRunOutcome.NO_FINDINGS || analysis.findings.isEmpty()) {
+            "A NO_FINDINGS run cannot contain findings."
+        }
+        require(run.outcome != AnalysisRunOutcome.SUCCESS || analysis.findings.isNotEmpty()) {
+            "A SUCCESS run must contain at least one finding; use NO_FINDINGS otherwise."
+        }
+
+        writableDatabase.inTransaction {
+            requireSessionOpen(this, sessionId)
+            requireObservationBelongsToSession(this, run.observationId, sessionId)
+            insertOrThrow("analysis_runs", null, run.toValues(sessionId))
+            if (run.outcome == AnalysisRunOutcome.SUCCESS) {
+                analysis.findings.forEach { finding ->
+                    insertOrThrow("findings", null, finding.toValues(sessionId))
+                }
+            }
         }
     }
 
