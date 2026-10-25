@@ -128,6 +128,8 @@ object RfAnalysisPipeline {
                 "window" to window.name,
                 "minimumPeakExcessDb" to config.minimumPeakExcessDb.toString(),
                 "madMultiplier" to config.madMultiplier.toString(),
+                "minimumBinSeparation" to config.minimumBinSeparation.toString(),
+                "maximumFindings" to config.maximumFindings.toString(),
                 "sampleRateHz" to sampleRate.toString(),
                 "centerFrequencyHz" to centerFrequency.toString(),
                 "sampleCount" to iSamples.size.toString(),
