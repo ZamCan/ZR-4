@@ -26,6 +26,26 @@ class RfAnalysisCoordinator(private val store: LocalObservationDatabase) {
         return result
     }
 
+    fun analyzeComplexIq(
+        sessionId: String,
+        observation: ObservationRecord,
+        runId: String,
+        startedAtEpochMillis: Long,
+        completedAtEpochMillis: Long,
+        iSamples: DoubleArray,
+        qSamples: DoubleArray,
+        window: WindowFunction = WindowFunction.HANN,
+        config: AdaptiveDetectionConfig = AdaptiveDetectionConfig()
+    ): RfAnalysisPipelineResult {
+        requireStoredObservation(sessionId, observation)
+        val result = RfAnalysisPipeline.analyzeComplexIq(
+            observation, runId, startedAtEpochMillis, completedAtEpochMillis,
+            iSamples, qSamples, window, config
+        )
+        store.saveAnalysis(sessionId, result.provenance)
+        return result
+    }
+
     fun analyzeBursts(
         sessionId: String,
         observation: ObservationRecord,
