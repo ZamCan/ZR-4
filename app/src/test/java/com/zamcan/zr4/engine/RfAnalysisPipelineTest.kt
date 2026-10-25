@@ -22,7 +22,7 @@ class RfAnalysisPipelineTest {
         assertTrue(result.provenance.findings.isNotEmpty())
         assertTrue(result.provenance.findings.all { it.analysisRunId == "run-spectrum" })
         assertTrue(result.provenance.run.parameters["frequencyInterpretation"]!!.contains("baseband offsets"))
-        assertTrue(!result.provenance.run.parameters["frequencyInterpretation"]!!.contains("complex-IQ centered"))
+        assertTrue(result.provenance.run.parameters["frequencyInterpretation"]!!.contains("not complex-IQ centered RF"))
     }
 
     @Test fun omittedCompletionTimestampIsRecordedAfterAnalysisStarts() {
