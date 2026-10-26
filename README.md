@@ -76,6 +76,13 @@ Run the Android instrumentation tests on a connected device/emulator:
 
 The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. Recent fast CI run [#40278617251](https://github.com/ZamCan/ZR-4/actions/runs/40278617251) passed APK assembly, JVM unit tests, and debug APK artifact upload on the related instrumentation-fix branch. This PR's exact head still needs its own fast CI result. Emulator instrumentation is intentionally manual because prior runs were excessively long; physical handset and RTL-SDR validation remain separate.
 
+## Live device log capture
+
+- Android Developer Options > Select debug app > ZR 4 only configures debugger attachment; it does not stream logs to GitHub or grant Termux privileged log access. Keep **Wait for debugger** off for normal testing.
+- If ADB is already authorized and connected, start a capture before reproducing a problem: `adb logcat -v time > zr4-logcat.txt`. Stop with Ctrl+C after the issue appears. For a focused live view use `adb logcat -v time | grep -iE 'AndroidRuntime|FATAL EXCEPTION|com.zamcan.zr4|ZR4'`.
+- On the same Android phone, Termux's `adb` client does not automatically get access to the phone's own system ADB service. If `adb devices` shows no device or `adb logcat` returns a permission error, do not uninstall the app or change signing; use Android's **Take bug report** option to capture a system log, or connect to an authorized ADB host later.
+- GitHub Actions logs show build/test results from GitHub's runner, not live logs from the physical phone. Upload only the relevant log excerpt and remove Wi-Fi names, addresses, tokens, and other private data first.
+
 ## Staged roadmap
 
 - [x] Buildable Android foundation and truthful empty-data states
