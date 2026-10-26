@@ -64,6 +64,16 @@ class RfDspEngineTest {
     }
 
     @Test
+    fun outOfRangeNormalizedSamplesAreRejected() {
+        try {
+            RfDspEngine.analyzeRealSamples(doubleArrayOf(0.0, 0.2, 1.01, 0.0), 1000.0)
+            throw AssertionError("Out-of-range samples must be rejected for dBFS analysis")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message!!.contains("normalized"))
+        }
+    }
+
+    @Test
     fun emptyPeakInputReturnsNoDetections() {
         val frame = SpectrumFrame(
             sampleRateHz = 1000.0,

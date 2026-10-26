@@ -10,7 +10,9 @@ enum class ObservationSourceType {
     CAMERA_VISIBLE_LIGHT,
     EXTERNAL_SDR,
     IMPORTED_FILE,
-    TEST_FIXTURE
+    TEST_FIXTURE,
+    /** User-authored field note; not a sensor measurement. */
+    MANUAL_NOTE
 }
 
 enum class ObservationDataUnit {

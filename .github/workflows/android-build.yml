@@ -2,10 +2,16 @@ name: Android build
 
 on:
   push:
-    branches: [main]
+    branches: [main, core/premium-stable]
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_instrumentation:
+        description: "Run the slower Android emulator instrumentation suite"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,22 +21,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  debug-apk:
+  build-and-unit-test:
+    name: Build APK and run JVM tests
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
       - name: Assemble debug APK
         run: ./gradlew --no-daemon assembleDebug
+
       - name: Run JVM unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -38,3 +51,33 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  emulator-instrumentation:
+    name: Android emulator instrumentation (manual)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
+    needs: build-and-unit-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android instrumentation tests on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-boot-timeout: 300
+          script: ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest

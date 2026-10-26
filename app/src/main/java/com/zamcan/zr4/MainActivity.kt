@@ -1,9 +1,15 @@
 package com.zamcan.zr4
 
 import android.os.Bundle
+import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -32,13 +38,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +75,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.zamcan.zr4.engine.ObservationSession
+import com.zamcan.zr4.engine.ObservationRecord
+import com.zamcan.zr4.engine.ObservationRecordState
+import com.zamcan.zr4.engine.ObservationDataUnit
+import com.zamcan.zr4.engine.ObservationSourceType
+import com.zamcan.zr4.engine.ObservationSessionSnapshot
+import com.zamcan.zr4.engine.ObservationSessionState
+import com.zamcan.zr4.export.SessionCsvExporter
+import com.zamcan.zr4.storage.LocalObservationDatabase
+import com.zamcan.zr4.engine.RfAnalysisCoordinator
+import com.zamcan.zr4.engine.AdaptiveDetectionConfig
+import com.zamcan.zr4.engine.WindowFunction
+import com.zamcan.zr4.engine.SpectrumFrame
+import com.zamcan.zr4.importer.ImportedSampleMetadata
+import com.zamcan.zr4.importer.ImportedSampleObservationFactory
+import com.zamcan.zr4.importer.NormalizedSampleCsvImporter
+import com.zamcan.zr4.importer.NormalizedSamplePayload
+import com.zamcan.zr4.radio.AndroidRadioObservationCollector
+import com.zamcan.zr4.receiver.RtlTcpNetworkDriver
+import com.zamcan.zr4.receiver.SdrCaptureRequest
+import com.zamcan.zr4.receiver.SdrReceiverRegistry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
+import java.io.ByteArrayOutputStream
 
 /**
  * ZR 4 - ZamCan RF Observatory
@@ -156,6 +199,7 @@ class MainActivity : ComponentActivity() {
 private fun Zr4App() {
     var section by remember { mutableStateOf(AppSection.Overview) }
     var selectedSource by remember { mutableStateOf("External SDR") }
+    var latestSpectrumFrame by remember { mutableStateOf<SpectrumFrame?>(null) }
 
     Box(Modifier.fillMaxSize().background(InkDeep)) {
         AuroraBackground()
@@ -204,6 +248,7 @@ private fun Zr4App() {
                                 selectedSource = source
                                 section = AppSection.Sources
                             },
+                            spectrumFrame = latestSpectrumFrame,
                             onExploreSources = { section = AppSection.Sources },
                             onOpenSessions = { section = AppSection.Sessions },
                         )
@@ -211,7 +256,9 @@ private fun Zr4App() {
                             selectedSource = selectedSource,
                             onSelectSource = { selectedSource = it },
                         )
-                        AppSection.Sessions -> SessionsScreen()
+                        AppSection.Sessions -> SessionsScreen(
+                            onSpectrumFrame = { latestSpectrumFrame = it }
+                        )
                         AppSection.About -> AboutScreen()
                     }
                 }
@@ -475,6 +522,22 @@ private fun GoldButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
+private fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, GlassLine, RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = Paper, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1)
+    }
+}
+
+@Composable
 private fun Eyebrow(text: String, color: Color = Gold) {
     Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
 }
@@ -530,6 +593,7 @@ private fun InfoRow(label: String, value: String, icon: InstrumentIconKind = Ins
 private fun OverviewScreen(
     selectedSource: String,
     onOpenSource: (String) -> Unit,
+    spectrumFrame: SpectrumFrame?,
     onExploreSources: () -> Unit,
     onOpenSessions: () -> Unit,
 ) {
@@ -544,11 +608,11 @@ private fun OverviewScreen(
             )
         }
 
-        StatusHero(onExploreSources)
+        StatusHero(hasMeasurement = spectrumFrame != null, onExploreSources = onExploreSources)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("SPECTRUM", spectrumStateFor(selectedSource).first)
-            SpectrumPanel(selectedSource)
+            SectionHeading("SPECTRUM", if (spectrumFrame == null) spectrumStateFor(selectedSource).first else "ANALYSED INPUT")
+            SpectrumPanel(selectedSource, spectrumFrame)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -558,19 +622,19 @@ private fun OverviewScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Camera-visible light", "IN DEVELOPMENT", onClick = { onOpenSource("Optical observation") }, modifier = Modifier.weight(1f))
-                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "IN DEVELOPMENT", onClick = { onOpenSource("Wi-Fi and Bluetooth") }, modifier = Modifier.weight(1f))
+                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "OS-LIMITED", onClick = { onOpenSource("Wi-Fi and Bluetooth") }, modifier = Modifier.weight(1f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "Receiver-dependent RF data", "HARDWARE REQUIRED", onClick = { onOpenSource("External SDR") }, modifier = Modifier.weight(1f))
-                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV", "IN DEVELOPMENT", onClick = onOpenSessions, modifier = Modifier.weight(1f))
+                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "RTL-TCP network I/Q; USB pending", "NETWORK / HARDWARE", onClick = { onOpenSource("External SDR") }, modifier = Modifier.weight(1f))
+                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV export", "STORAGE READY", onClick = onOpenSessions, modifier = Modifier.weight(1f))
                         }
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT", onClick = { onOpenSource("Optical observation") })
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Only observations exposed by Android", "IN DEVELOPMENT", onClick = { onOpenSource("Wi-Fi and Bluetooth") })
-                        SourceSummary("USB SDR receiver", InstrumentIconKind.Antenna, Amber, "RF spectrum only with compatible hardware", "HARDWARE REQUIRED", onClick = { onOpenSource("External SDR") })
-                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and export", "IN DEVELOPMENT", onClick = onOpenSessions)
+                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi snapshots and bounded BLE observations", "OS-LIMITED", onClick = { onOpenSource("Wi-Fi and Bluetooth") })
+                        SourceSummary("RTL-TCP network SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q from a configured rtl_tcp server", "NETWORK / HARDWARE", onClick = { onOpenSource("External SDR") })
+                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY", onClick = onOpenSessions)
                     }
                 }
             }
@@ -585,7 +649,7 @@ private fun OverviewScreen(
 }
 
 @Composable
-private fun StatusHero(onExploreSources: () -> Unit) {
+private fun StatusHero(hasMeasurement: Boolean, onExploreSources: () -> Unit) {
     GlassPanel(accent = Gold, shape = RoundedCornerShape(28.dp), padding = 0.dp) {
         Box {
             Canvas(Modifier.fillMaxSize()) {
@@ -602,12 +666,12 @@ private fun StatusHero(onExploreSources: () -> Unit) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Eyebrow("SYSTEM READINESS")
-                    GlassChip(Gold, "STANDBY")
+                    GlassChip(if (hasMeasurement) Mint else Gold, if (hasMeasurement) "ANALYSED" else "STANDBY")
                 }
-                Text("No measurement source connected", fontSize = 21.sp, fontWeight = FontWeight.Black, lineHeight = 27.sp)
+                Text(if (hasMeasurement) "Latest analysed capture available" else "No measurement source connected", fontSize = 21.sp, fontWeight = FontWeight.Black, lineHeight = 27.sp)
                 Text(
-                    "The interface is ready to configure. Live acquisition remains unavailable until a " +
-                        "supported observation source is implemented and connected.",
+                    if (hasMeasurement) "A computed spectrum is available from the latest imported or RTL-TCP capture. It is not a live continuous display." else
+                        "The interface is ready to configure. A real spectrum requires imported samples or a compatible RTL-TCP receiver.",
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -635,14 +699,14 @@ private fun spectrumStateFor(selectedSource: String): Triple<String, String, Str
             "No optical samples have been acquired",
         )
         "Wi-Fi and Bluetooth" -> Triple(
-            "NOT IMPLEMENTED",
-            "Selected: Wi-Fi and Bluetooth — not implemented in this build",
-            "No Wi-Fi or Bluetooth observations have been acquired",
+            "AVAILABLE · LIMITED",
+            "Selected: Wi-Fi/BLE metadata observations; not a spectrum source",
+            "Wi-Fi/BLE observations are metadata only and cannot produce an RF spectrum",
         )
         "External SDR" -> Triple(
-            "HARDWARE REQUIRED",
-            "Selected: External SDR — a compatible receiver is required",
-            "No receiver is connected, so no spectrum can be plotted",
+            "RTL-TCP NETWORK",
+            "Selected: External SDR — configure a reachable rtl_tcp server in Sessions",
+            "No spectrum appears until a compatible remote receiver supplies real I/Q samples",
         )
         else -> Triple(
             "NO SOURCE",
@@ -651,7 +715,6 @@ private fun spectrumStateFor(selectedSource: String): Triple<String, String, Str
         )
     }
 
-@Composable
 private fun sourceVisualFor(selectedSource: String): Pair<InstrumentIconKind, Color> =
     when (selectedSource) {
         "Optical observation" -> InstrumentIconKind.Lens to Gold
@@ -661,9 +724,11 @@ private fun sourceVisualFor(selectedSource: String): Pair<InstrumentIconKind, Co
     }
 
 @Composable
-private fun SpectrumPanel(selectedSource: String) {
+private fun SpectrumPanel(selectedSource: String, frame: SpectrumFrame?) {
     val spectrumState = spectrumStateFor(selectedSource)
     val (sourceIcon, sourceTint) = sourceVisualFor(selectedSource)
+    val plotCaption = if (frame == null) spectrumState.second
+        else "${frame.sampleCount} samples · ${frame.window.name} window · relative dBFS"
     GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 16.dp) {
         Row(
             Modifier.fillMaxWidth(),
@@ -673,9 +738,9 @@ private fun SpectrumPanel(selectedSource: String) {
             IconBadge(sourceIcon, sourceTint, 38.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("Spectrum", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(spectrumState.second, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                Text(plotCaption, color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
             }
-            Text("RF / —", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(if (frame == null) "RF / —" else "dBFS", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
         Box(
@@ -695,29 +760,79 @@ private fun SpectrumPanel(selectedSource: String) {
                     val x = size.width * i / 6
                     drawLine(GlassLine, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
                 }
+                val amplitudes = frame?.amplitudeDbfs
+                if (amplitudes != null && amplitudes.size > 1) {
+                    val floorDbfs = -120.0
+                    val ceilingDbfs = 0.0
+                    for (index in 1 until amplitudes.size) {
+                        val previous = ((amplitudes[index - 1].coerceIn(floorDbfs, ceilingDbfs) - floorDbfs) /
+                            (ceilingDbfs - floorDbfs)).toFloat()
+                        val current = ((amplitudes[index].coerceIn(floorDbfs, ceilingDbfs) - floorDbfs) /
+                            (ceilingDbfs - floorDbfs)).toFloat()
+                        val x0 = size.width * (index - 1).toFloat() / (amplitudes.size - 1).toFloat()
+                        val x1 = size.width * index.toFloat() / (amplitudes.size - 1).toFloat()
+                        drawLine(
+                            Mint,
+                            Offset(x0, size.height * (1f - previous)),
+                            Offset(x1, size.height * (1f - current)),
+                            strokeWidth = 1.5.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+                }
             }
-            Column(
-                Modifier.align(Alignment.Center)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text("NO DATA", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
-                Text(spectrumState.third, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 15.sp)
+            if (frame == null) {
+                Column(
+                    Modifier.align(Alignment.Center)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(1.dp, Gold.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text("NO DATA", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                    Text(spectrumState.third, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 15.sp)
+                }
+            } else {
+                Text(
+                    "COMPUTED · dBFS",
+                    color = Mint,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(5.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
             }
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-            Text("FREQUENCY AXIS: UNAVAILABLE", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
-            Text("0 SAMPLES", color = Muted, fontSize = 10.5.sp, letterSpacing = 0.6.sp)
+            val axisLabel = when {
+                frame == null -> "FREQUENCY AXIS: UNAVAILABLE"
+                frame.centerFrequencyHz == null -> "AXIS: BASEBAND OFFSET"
+                else -> "AXIS: CENTERED RF"
+            }
+            Text(axisLabel, color = Muted, fontSize = 9.5.sp, letterSpacing = 0.3.sp)
+            Text(if (frame == null) "0 SAMPLES" else "${frame.sampleCount} SAMPLES", color = Muted, fontSize = 9.5.sp)
         }
         Spacer(Modifier.height(6.dp))
-        SpectrumContextRow("SOURCE", selectedSource)
-        SpectrumContextRow("OBSERVATION TIME", "—  ·  no samples acquired")
-        SpectrumContextRow("FREQUENCY · LEVEL · UNITS", "—  ·  defined by the source, when samples exist")
+        SpectrumContextRow("SOURCE", frame?.provenance?.hardwareDescription ?: selectedSource)
+        val capturedAt = frame?.provenance?.capturedAtEpochMillis
+        SpectrumContextRow(
+            "OBSERVATION TIME",
+            if (capturedAt == null) "— · no samples acquired" else
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(capturedAt))
+        )
+        val firstHz = frame?.binFrequenciesHz?.firstOrNull()
+        val lastHz = frame?.binFrequenciesHz?.lastOrNull()
+        val frequencyRange = if (firstHz == null || lastHz == null) "—" else if (frame?.centerFrequencyHz == null) {
+            "${"%.1f".format(Locale.ROOT, firstHz / 1_000.0)}–${"%.1f".format(Locale.ROOT, lastHz / 1_000.0)} kHz offset"
+        } else {
+            "${"%.3f".format(Locale.ROOT, firstHz / 1_000_000.0)}–${"%.3f".format(Locale.ROOT, lastHz / 1_000_000.0)} MHz"
+        }
+        SpectrumContextRow("FREQUENCY RANGE", frequencyRange)
+        SpectrumContextRow("LEVEL", if (frame == null) "—" else "Relative dBFS; not calibrated dBm or dBm/Hz")
     }
 }
 
@@ -800,17 +915,16 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             "Intended for visible indicator states, brightness changes, and blink timing. Camera frame rate, " +
                 "exposure, and lighting limit the timing accuracy. This source cannot detect RF directly.",
             selectedSource == "Optical observation") { onSelectSource("Optical observation") }
-        SourceDetailCard("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Android-reported observations", "NOT IMPLEMENTED",
-            "Will use supported Android APIs and required runtime permissions. Results depend on OS version, " +
-                "permissions, radio state, and what the device exposes; they are not a calibrated wideband spectrum.",
+        SourceDetailCard("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Android-reported observations", "AVAILABLE · LIMITED",
+            "Wi-Fi scan snapshots and bounded Bluetooth Low Energy observations use Android APIs and runtime permissions. Results depend on OS version, " +
+                "permissions, radio state, throttling, and what the device exposes; they are not a calibrated wideband spectrum.",
             selectedSource == "Wi-Fi and Bluetooth") { onSelectSource("Wi-Fi and Bluetooth") }
-        SourceDetailCard("External SDR", InstrumentIconKind.Antenna, Amber, "USB host / supported receiver", "HARDWARE REQUIRED",
-            "Continuous RF spectrum or IQ acquisition requires a compatible SDR, supported USB interface, " +
-                "permission handling, and a validated receiver pipeline. No RF readings are available without it.",
+        SourceDetailCard("External SDR", InstrumentIconKind.Antenna, Amber, "RTL-TCP network receiver; direct USB pending", "NETWORK / HARDWARE REQUIRED",
+            "A configured rtl_tcp server can supply network I/Q for local spectrum analysis when a compatible receiver is connected at the server. " +
+                "Direct USB support and physical receiver validation remain outstanding.",
             selectedSource == "External SDR") { onSelectSource("External SDR") }
-        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "Local records and exports", "NOT IMPLEMENTED",
-            "Planned session records will retain timestamps, source identity, units, configuration, and relevant " +
-                "limitations. CSV export will only include values actually acquired or explicitly entered.",
+        SourceDetailCard("Measurement sessions", InstrumentIconKind.Layers, Stone, "On-device SQLite metadata", "STORAGE READY",
+            "Create and close sessions, inspect persisted observations and findings, and export traceable session metadata to CSV. Raw sample payloads are not stored.",
             selectedSource == "Measurement sessions") { onSelectSource("Measurement sessions") }
 
         GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 17.dp) {
@@ -819,7 +933,12 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
             Text(selectedSource, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
             Text(
-                "This module is a planning and interface selection only. Acquisition is not active in this build.",
+                when (selectedSource) {
+                    "Wi-Fi and Bluetooth" -> "Wi-Fi scan snapshots and bounded BLE metadata observations are available in Sessions. They are not continuous spectrum or raw I/Q."
+                    "External SDR" -> "Use Sessions to connect to a reachable rtl_tcp server and capture real I/Q. Direct USB acquisition and physical receiver validation remain pending."
+                    "Measurement sessions" -> "Create an open session to record Wi-Fi/BLE metadata, import normalized sample files, or capture from a configured RTL-TCP endpoint."
+                    else -> "Optical sampling is not implemented yet. This module does not fabricate observations."
+                },
                 color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
             )
         }
@@ -871,58 +990,745 @@ private fun SourceDetailCard(
 /* --------------------------------------------------------------- sessions */
 
 @Composable
-private fun SessionsScreen() {
+private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val database = remember(context) { LocalObservationDatabase(context) }
+    var sessions by remember { mutableStateOf<List<ObservationSession>>(emptyList()) }
+    var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    var selectedSnapshot by remember { mutableStateOf<ObservationSessionSnapshot?>(null) }
+    var feedback by remember { mutableStateOf("Loading local session records…") }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var pendingImportPayload by remember { mutableStateOf<NormalizedSamplePayload?>(null) }
+    var pendingImportName by remember { mutableStateOf("sample.csv") }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var importSampleRate by remember { mutableStateOf("48000") }
+    var importCenterFrequency by remember { mutableStateOf("") }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
+    var bluetoothScanInProgress by remember { mutableStateOf(false) }
+    var showSdrDialog by remember { mutableStateOf(false) }
+    var sdrCaptureInProgress by remember { mutableStateOf(false) }
+    var sdrHost by remember { mutableStateOf("") }
+    var sdrPort by remember { mutableStateOf("1234") }
+    var sdrCenterFrequency by remember { mutableStateOf("100000000") }
+    var sdrSampleRate by remember { mutableStateOf("2048000") }
+    var sdrSampleCount by remember { mutableStateOf("4096") }
+
+    val createCsvDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        val csv = pendingCsv
+        if (uri == null || csv == null) {
+            feedback = "CSV export cancelled."
+        } else {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val output = requireNotNull(context.contentResolver.openOutputStream(uri)) {
+                            "Android could not open the selected destination."
+                        }
+                        output.bufferedWriter(Charsets.UTF_8).use { it.write(csv) }
+                    }
+                    feedback = "CSV exported successfully. The file contains persisted metadata, not raw IQ samples."
+                } catch (error: Exception) {
+                    feedback = "CSV export failed: ${error.message ?: "unknown error"}"
+                } finally {
+                    pendingCsv = null
+                }
+            }
+        }
+    }
+
+    val openSampleDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) {
+            feedback = "Sample import cancelled."
+        } else {
+            scope.launch {
+                try {
+                    val csv = withContext(Dispatchers.IO) {
+                        val input = requireNotNull(context.contentResolver.openInputStream(uri)) {
+                            "Android could not open the selected file."
+                        }
+                        input.use { stream ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = stream.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= NormalizedSampleCsvImporter.MAX_CSV_CHARACTERS) {
+                                    "CSV file exceeds the supported 8 MiB import limit."
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toString("UTF-8")
+                        }
+                    }
+                    val payload = withContext(Dispatchers.Default) {
+                        NormalizedSampleCsvImporter.parse(csv)
+                    }
+                    require(payload.sampleCount >= 2 && Integer.bitCount(payload.sampleCount) == 1) {
+                        "Sample count must be a power of two (2 or more) for this FFT engine."
+                    }
+                    pendingImportPayload = payload
+                    pendingImportName = uri.lastPathSegment?.substringAfterLast('/')?.take(80) ?: "sample.csv"
+                    showImportDialog = true
+                    feedback = "Sample file parsed. Confirm its acquisition metadata before analysis."
+                } catch (error: Exception) {
+                    pendingImportPayload = null
+                    feedback = "Sample import failed: ${error.message ?: "unknown error"}"
+                }
+            }
+        }
+    }
+
+    fun collectWifiSnapshot() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before recording a Wi-Fi snapshot."
+            return
+        }
+        scope.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) {
+                    AndroidRadioObservationCollector(context).collectWifiSnapshot()
+                }
+                withContext(Dispatchers.IO) { database.addObservation(target.id, summary.observation) }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                val strongest = summary.strongestRssiDbm?.let { " Strongest reported RSSI: " + it + " dBm." } ?: ""
+                val bands = if (summary.frequenciesMhz.isEmpty()) "" else
+                    " Observed frequencies (MHz): " + summary.frequenciesMhz.joinToString(", ") + "."
+                feedback = summary.statusMessage + " Recorded observation metadata. Result count: " +
+                    summary.networkCount + "." + strongest + bands
+            } catch (error: Exception) {
+                feedback = "Wi-Fi snapshot could not be saved: " + (error.message ?: "unknown error")
+            }
+        }
+    }
+
+    val wifiPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val required = listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (required.all { grants[it] == true ||
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) {
+            collectWifiSnapshot()
+        } else {
+            feedback = "Wi-Fi observation was not recorded because required permissions were denied."
+        }
+    }
+
+    val wifiPermissions = remember { arrayOf(Manifest.permission.ACCESS_FINE_LOCATION) }
+
+
+    fun collectBluetoothLe() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before recording a Bluetooth observation."
+            return
+        }
+        if (bluetoothScanInProgress) {
+            feedback = "A Bluetooth scan is already running."
+            return
+        }
+        bluetoothScanInProgress = true
+        feedback = "Scanning for Bluetooth Low Energy advertisements for up to 5 seconds…"
+        AndroidRadioObservationCollector(context).collectBluetoothLe { summary ->
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) { database.addObservation(target.id, summary.observation) }
+                    selectedSessionId = target.id
+                    selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                    sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                    val strongest = summary.strongestRssiDbm?.let { " Strongest reported RSSI: " + it + " dBm." } ?: ""
+                    feedback = summary.statusMessage + " Saved " + summary.advertisementResultCount +
+                        " BLE scan result callback(s)." + strongest
+                } catch (error: Exception) {
+                    feedback = "Bluetooth observation could not be saved: " + (error.message ?: "unknown error")
+                } finally {
+                    bluetoothScanInProgress = false
+                }
+            }
+        }
+    }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val required = if (Build.VERSION.SDK_INT >= 31) listOf(
+            Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT
+        ) else listOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (required.all { grants[it] == true || ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }) {
+            collectBluetoothLe()
+        } else feedback = "Bluetooth observation was not recorded because required permissions were denied."
+    }
+
+    val bluetoothPermissions = remember {
+        if (Build.VERSION.SDK_INT >= 31) arrayOf(
+            Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT
+        ) else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    fun saveAndAnalyzeImport() {
+        val target = selectedSnapshot?.session
+        val payload = pendingImportPayload
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Start or select an open session before importing samples."
+            showImportDialog = false
+            return
+        }
+        if (payload == null) {
+            feedback = "Select a sample CSV file first."
+            showImportDialog = false
+            return
+        }
+        val sampleRate = importSampleRate.trim().toDoubleOrNull()
+        val centerText = importCenterFrequency.trim()
+        val centerFrequency = if (centerText.isEmpty()) null else centerText.toDoubleOrNull()
+        if (sampleRate == null || !sampleRate.isFinite() || sampleRate <= 0.0) {
+            feedback = "Enter a valid positive sample rate in Hz."
+            return
+        }
+        if (centerText.isNotEmpty() && (centerFrequency == null || !centerFrequency.isFinite() || centerFrequency < 0.0)) {
+            feedback = "Center frequency must be a valid non-negative value in Hz."
+            return
+        }
+        if (payload is NormalizedSamplePayload.ComplexIq && centerFrequency == null) {
+            feedback = "Complex I/Q files require an explicit center frequency in Hz."
+            return
+        }
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val observationId = UUID.randomUUID().toString()
+            val observation = try {
+                val metadata = ImportedSampleMetadata(
+                    observationId = observationId,
+                    capturedAtEpochMillis = now,
+                    sampleRateHz = sampleRate,
+                    centerFrequencyHz = centerFrequency
+                )
+                val imported = ImportedSampleObservationFactory.create(payload, metadata)
+                imported.copy(
+                    notes = imported.notes + listOf(
+                        "Imported file: $pendingImportName",
+                        "Timestamp records import time; original source capture time was not supplied."
+                    )
+                )
+            } catch (error: Exception) {
+                feedback = "Import metadata is invalid: ${error.message ?: "unknown error"}"
+                return@launch
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    database.addObservation(target.id, observation)
+                }
+                val analysisStarted = System.currentTimeMillis()
+                val result = withContext(Dispatchers.Default) {
+                    RfAnalysisCoordinator(database).analyzeImportedSpectrum(
+                        sessionId = target.id,
+                        observation = observation,
+                        runId = UUID.randomUUID().toString(),
+                        startedAtEpochMillis = analysisStarted,
+                        payload = payload,
+                        window = WindowFunction.HANN,
+                        config = AdaptiveDetectionConfig()
+                    )
+                }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                onSpectrumFrame(result.spectrumFrame)
+                feedback = "Imported and analysed ${payload.sampleCount} samples. Outcome: ${result.provenance.run.outcome}. Levels are relative dBFS, not calibrated power."
+                pendingImportPayload = null
+                showImportDialog = false
+            } catch (error: Exception) {
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                pendingImportPayload = null
+                showImportDialog = false
+                feedback = "Import record may be saved, but analysis did not complete: ${error.message ?: "unknown error"}. Review the session before retrying to avoid duplicate imports."
+            }
+        }
+    }
+
+    fun captureSdr() {
+        val target = selectedSnapshot?.session
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Select an open session before capturing from an RTL-TCP receiver."
+            return
+        }
+        val host = sdrHost.trim()
+        val port = sdrPort.trim().toIntOrNull()
+        val centerFrequency = sdrCenterFrequency.trim().toDoubleOrNull()
+        val sampleRate = sdrSampleRate.trim().toLongOrNull()
+        val sampleCount = sdrSampleCount.trim().toIntOrNull()
+        if (host.isBlank() || port == null || port !in 1..65535) {
+            feedback = "Enter a valid RTL-TCP host and TCP port."
+            return
+        }
+        if (centerFrequency == null || !centerFrequency.isFinite() || centerFrequency < 0.0) {
+            feedback = "Enter a valid center frequency in Hz."
+            return
+        }
+        if (sampleRate == null || sampleRate !in RtlTcpNetworkDriver.SUPPORTED_SAMPLE_RATES_HZ) {
+            feedback = "Choose a supported RTL-TCP sample rate: " +
+                RtlTcpNetworkDriver.SUPPORTED_SAMPLE_RATES_HZ.sorted().joinToString(", ") + " Hz."
+            return
+        }
+        if (sampleCount == null || sampleCount < 2 ||
+            sampleCount > SdrCaptureRequest.MAX_CAPTURE_SAMPLES || Integer.bitCount(sampleCount) != 1) {
+            feedback = "Sample count must be a power of two between 2 and ${SdrCaptureRequest.MAX_CAPTURE_SAMPLES}."
+            return
+        }
+        if (centerFrequency < sampleRate / 2.0) {
+            feedback = "Center frequency must be at least half the sample rate for a non-negative RF frequency axis."
+            return
+        }
+        sdrCaptureInProgress = true
+        feedback = "Connecting to the configured RTL-TCP endpoint and waiting for a real I/Q capture…"
+        scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val driver = RtlTcpNetworkDriver(host, port)
+                    val registry = SdrReceiverRegistry()
+                    registry.register(driver)
+                    val device = registry.discoverDevices().single()
+                    RfAnalysisCoordinator(database).captureAndAnalyzeSdr(
+                        sessionId = target.id,
+                        registry = registry,
+                        driverId = driver.driverId,
+                        deviceId = device.descriptor.deviceId,
+                        request = SdrCaptureRequest(centerFrequency, sampleRate, sampleCount),
+                        observationId = UUID.randomUUID().toString(),
+                        runId = UUID.randomUUID().toString()
+                    )
+                }
+                selectedSessionId = target.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                onSpectrumFrame(result.analysis.spectrumFrame)
+                showSdrDialog = false
+                feedback = "Captured and analysed ${result.observation.sampleCount} I/Q samples from the configured RTL-TCP endpoint. Relative dBFS only; the basic protocol does not verify tuner settings or timestamp individual samples."
+            } catch (error: Exception) {
+                feedback = "RTL-TCP capture or analysis failed: ${error.message ?: "unknown error"}. No synthetic measurements were substituted."
+            } finally {
+                sdrCaptureInProgress = false
+            }
+        }
+    }
+
+    fun refreshSessions() {
+        scope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) { database.listSessions() }
+                sessions = loaded
+                val id = selectedSessionId
+                selectedSnapshot = if (id == null) null else withContext(Dispatchers.IO) {
+                    database.loadSession(id)
+                }
+                feedback = if (loaded.isEmpty()) {
+                    "No sessions yet. Start a session to create a local record."
+                } else {
+                    "${loaded.size} session(s) stored on this device."
+                }
+            } catch (error: Exception) {
+                feedback = "Could not load local sessions: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    DisposableEffect(database) {
+        onDispose { database.close() }
+    }
+    LaunchedEffect(database) { refreshSessions() }
+
+    fun startSession() {
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val title = "Observation " + SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(now))
+            val session = ObservationSession(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                startedAtEpochMillis = now
+            )
+            try {
+                withContext(Dispatchers.IO) { database.createSession(session) }
+                selectedSessionId = session.id
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(session.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                feedback = "Session started and saved locally."
+            } catch (error: Exception) {
+                feedback = "Could not start session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun closeSession(sessionId: String) {
+        scope.launch {
+            try {
+                val snapshot = withContext(Dispatchers.IO) {
+                    database.closeSession(sessionId, System.currentTimeMillis())
+                }
+                selectedSessionId = sessionId
+                selectedSnapshot = snapshot
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                feedback = "Session closed. Its records remain available for inspection and export."
+            } catch (error: Exception) {
+                feedback = "Could not close session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun selectSession(sessionId: String) {
+        selectedSessionId = sessionId
+        scope.launch {
+            try {
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(sessionId) }
+                feedback = if (selectedSnapshot == null) "Session no longer exists." else "Loaded persisted session details."
+            } catch (error: Exception) {
+                feedback = "Could not open session: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun saveFieldNote() {
+        val target = selectedSnapshot?.session
+        val note = noteText.trim()
+        if (target == null || target.state != ObservationSessionState.OPEN) {
+            feedback = "Select an open session before adding a field note."
+            showNoteDialog = false
+            return
+        }
+        if (note.isBlank()) {
+            feedback = "Enter a note before saving."
+            return
+        }
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val observation = ObservationRecord(
+                id = UUID.randomUUID().toString(),
+                sourceType = ObservationSourceType.MANUAL_NOTE,
+                capturedAtEpochMillis = now,
+                unit = ObservationDataUnit.UNKNOWN,
+                state = ObservationRecordState.INCOMPLETE,
+                notes = listOf("FIELD NOTE — NOT A MEASUREMENT", note)
+            )
+            try {
+                withContext(Dispatchers.IO) { database.addObservation(target.id, observation) }
+                selectedSnapshot = withContext(Dispatchers.IO) { database.loadSession(target.id) }
+                sessions = withContext(Dispatchers.IO) { database.listSessions() }
+                noteText = ""
+                showNoteDialog = false
+                feedback = "Field note saved. It is explicitly not a sensor measurement."
+            } catch (error: Exception) {
+                feedback = "Could not save field note: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
+    fun exportSession(sessionId: String) {
+        scope.launch {
+            try {
+                val snapshot = withContext(Dispatchers.IO) { database.loadSession(sessionId) }
+                    ?: error("The selected session could not be found.")
+                pendingCsv = SessionCsvExporter.export(snapshot)
+                val safeId = sessionId.take(8)
+                createCsvDocument.launch("ZR4-session-$safeId.csv")
+            } catch (error: Exception) {
+                pendingCsv = null
+                feedback = "Could not prepare CSV: ${error.message ?: "unknown error"}"
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Eyebrow("OBSERVATORY / RECORDS", Stone)
             Text("Session workspace", fontSize = 26.sp, fontWeight = FontWeight.Black)
-            Text("A clear home for repeatable, traceable experiments.", color = Muted, fontSize = 13.sp)
+            Text("Create local records, inspect evidence, and export traceable session metadata.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
-        GlassPanel(accent = Stone, shape = RoundedCornerShape(26.dp), padding = 24.dp) {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(11.dp),
-            ) {
-                IconBadge(InstrumentIconKind.Layers, Stone, 60.dp)
-                Text("No sessions recorded", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "The engine layer defines traceable sessions, observations and analysis runs, " +
-                        "but they are not connected to this interface and nothing is persisted on " +
-                        "this device yet. No placeholder records are shown.",
-                    color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
-                )
+
+        GlassPanel(accent = Stone, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(InstrumentIconKind.Layers, Stone, 46.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("On-device session storage", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("SQLite · offline-first · no cloud account", color = Muted, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            GoldButton("＋  Start observation session", ::startSession, Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            GlassButton(
+                "Import normalized sample CSV",
+                { openSampleDocument.launch(arrayOf("text/*", "application/*")) },
+                Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
+                if (sdrCaptureInProgress) "Capturing RTL-TCP samples…" else "Capture from RTL-TCP network SDR",
+                { if (!sdrCaptureInProgress) showSdrDialog = true },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Connect to a remote rtl_tcp server you control. Enter its host and port below. This is real network I/Q acquisition when a compatible server and receiver are available; no network scan or fake data is used.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
+                "Record Wi-Fi scan snapshot",
+                {
+                    val permissionsGranted = wifiPermissions.all {
+                        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+                    }
+                    if (permissionsGranted) collectWifiSnapshot() else wifiPermissionLauncher.launch(wifiPermissions)
+                },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Reads Android's existing Wi-Fi scan results; it does not force a fresh scan. Results may be throttled or stale. Network names and addresses are not saved. This is not an RF spectrum capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            GoldButton(
+                if (bluetoothScanInProgress) "Scanning Bluetooth LE…" else "Record Bluetooth LE scan",
+                {
+                    val granted = bluetoothPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+                    if (granted) collectBluetoothLe() else bluetoothPermissionLauncher.launch(bluetoothPermissions)
+                },
+                Modifier.fillMaxWidth()
+            )
+            Text(
+                "Runs a bounded 5-second Bluetooth Low Energy scan. Counts scan-result callbacks, not unique devices. Device names, addresses, and advertisement payloads are not saved. This is not an RF spectrum capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Text(
+                "Accepts normalized real samples (sample) or complex I/Q pairs (i,q). The file must contain finite values in [-1, 1], with a power-of-two sample count. Import does not mean live capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(feedback, color = if (feedback.contains("failed", ignoreCase = true) || feedback.contains("could not", ignoreCase = true)) Amber else Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+
+        SectionHeading("SAVED SESSIONS", "${sessions.size} RECORDS")
+        if (sessions.isEmpty()) {
+            GlassPanel(accent = Stone, shape = RoundedCornerShape(22.dp), padding = 22.dp) {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    IconBadge(InstrumentIconKind.Layers, Stone, 54.dp)
+                    Text("No sessions recorded", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Start a session above. An empty session is real metadata; observations appear only after a supported source actually supplies them.", color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+                }
+            }
+        } else {
+            sessions.forEach { session ->
+                val isSelected = selectedSessionId == session.id
+                GlassPanel(
+                    accent = if (isSelected) Gold else Stone,
+                    shape = RoundedCornerShape(21.dp),
+                    padding = 15.dp
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                        IconBadge(InstrumentIconKind.Clock, if (session.state == ObservationSessionState.OPEN) Mint else Stone, 38.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(session.title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(session.startedAtEpochMillis)),
+                                color = Muted, fontSize = 11.sp
+                            )
+                            Text(
+                                if (session.state == ObservationSessionState.OPEN) "OPEN · can record new observations" else "CLOSED · read-only session",
+                                color = if (session.state == ObservationSessionState.OPEN) Mint else Stone,
+                                fontSize = 10.5.sp, fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlassButton(if (isSelected) "Selected" else "Inspect", { selectSession(session.id) }, Modifier.weight(1f))
+                        GlassButton("Export CSV", { exportSession(session.id) }, Modifier.weight(1f))
+                    }
+                    if (session.state == ObservationSessionState.OPEN) {
+                        Spacer(Modifier.height(8.dp))
+                        GoldButton("Close session", { closeSession(session.id) }, Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
-        SectionHeading("FINDINGS", "EVIDENCE ONLY")
-        GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 18.dp) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(13.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                IconBadge(InstrumentIconKind.Crosshair, Gold, 44.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("No findings recorded", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Findings are created only from acquired samples with their source, time, " +
-                            "units and configuration recorded. Anything unverified is labelled " +
-                            "'candidate detected' — never a confirmed transmitter or protocol.",
-                        color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
+
+        selectedSnapshot?.let { snapshot ->
+            SectionHeading("SELECTED SESSION", "PERSISTED DATA")
+            GlassPanel(accent = Gold, shape = RoundedCornerShape(22.dp), padding = 17.dp) {
+                Text(snapshot.session.title, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("State: ${snapshot.session.state.name}", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricPill("Observations", snapshot.observations.size.toString())
+                    MetricPill("Analysis runs", snapshot.analysisRuns.size.toString())
+                    MetricPill("Findings", snapshot.findings.size.toString())
+                }
+                if (snapshot.session.state == ObservationSessionState.OPEN) {
+                    Spacer(Modifier.height(10.dp))
+                    GoldButton("＋  Add field note (not a measurement)", {
+                        noteText = ""
+                        showNoteDialog = true
+                    }, Modifier.fillMaxWidth())
+                }
+                if (snapshot.observations.isEmpty() && snapshot.findings.isEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("This session has metadata only. No measurement or finding has been fabricated.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                }
+                snapshot.observations.forEach { observation ->
+                    Spacer(Modifier.height(10.dp))
+                    InfoRow(
+                        "${observation.sourceType.name} · ${observation.state.name}",
+                        "Captured ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(observation.capturedAtEpochMillis))}\nUnit: ${observation.unit.name}\n${observation.notes.joinToString(" · ").ifBlank { "No notes" }}",
+                        InstrumentIconKind.Radio, Mint
                     )
-                    Text(
-                        "Selecting a recorded finding will open its detail: frequency, level and " +
-                            "units, evidence, limitations, and the analysis run that produced it.",
-                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
+                }
+                snapshot.findings.forEach { finding ->
+                    Spacer(Modifier.height(10.dp))
+                    InfoRow(
+                        finding.kind,
+                        "Frequency: ${finding.frequencyHz?.let { "%.3f Hz".format(Locale.ROOT, it) } ?: "not available"}\nLevel: ${finding.level?.let { "%.2f".format(Locale.ROOT, it) } ?: "not available"} ${finding.unit.name}\nEvidence: ${finding.evidence.joinToString(" · ")}\nLimitations: ${finding.limitations.joinToString(" · ")}",
+                        InstrumentIconKind.Crosshair, Gold
                     )
                 }
             }
         }
-        SectionHeading("SESSION RECORD FIELDS", "ENGINE-DEFINED")
-        InfoRow("Timestamp", "Local time with explicit timezone handling", InstrumentIconKind.Clock, Mint)
-        InfoRow("Observation source", "Device / adapter and source type", InstrumentIconKind.Antenna, Amber)
-        InfoRow("Units and configuration", "Recorded alongside every measurement", InstrumentIconKind.Settings, Gold)
-        InfoRow("Analysis provenance", "Algorithm, version, parameters and outcome for every analysis run", InstrumentIconKind.Check, Mint)
-        InfoRow("Export", "CSV after storage and validation are implemented", InstrumentIconKind.Export, Stone)
+
+        SectionHeading("RECORD INTEGRITY", "EVIDENCE ONLY")
+        InfoRow("Timestamp", "Stored as epoch milliseconds and exported in UTC ISO-8601 format", InstrumentIconKind.Clock, Mint)
+        InfoRow("Source and units", "Stored with every observation; absent measurements remain absent", InstrumentIconKind.Antenna, Amber)
+        InfoRow("Analysis provenance", "Algorithm, version, parameters, outcome, evidence and limitations", InstrumentIconKind.Check, Gold)
+        InfoRow("CSV export", "Uses Android's document picker so the user chooses where the CSV file is saved", InstrumentIconKind.Export, Stone)
+        Text("Raw IQ/sample payloads are not stored in this database. Export includes persisted metadata and traceable findings only.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+
+    if (showSdrDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!sdrCaptureInProgress) showSdrDialog = false },
+            title = { Text("RTL-TCP network receiver") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "The remote computer must already run rtl_tcp with a compatible RTL-SDR connected. Use its reachable IP/hostname and port. The server protocol has no per-sample timestamps or reliable tuning acknowledgement.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+                    )
+                    OutlinedTextField(sdrHost, { sdrHost = it }, label = { Text("Server host or IP *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrPort, { sdrPort = it }, label = { Text("TCP port *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrCenterFrequency, { sdrCenterFrequency = it }, label = { Text("Center frequency (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrSampleRate, { sdrSampleRate = it }, label = { Text("Sample rate (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(sdrSampleCount, { sdrSampleCount = it }, label = { Text("Sample count (power of two) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        "Capture is saved to the selected open session, then analysed locally. Samples remain in memory, not in the metadata database. Levels are dBFS, not calibrated dBm.",
+                        color = Amber, fontSize = 11.sp, lineHeight = 16.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::captureSdr, enabled = !sdrCaptureInProgress) { Text(if (sdrCaptureInProgress) "Capturing…" else "Capture and analyse") }
+            },
+            dismissButton = {
+                TextButton(onClick = { if (!sdrCaptureInProgress) showSdrDialog = false }, enabled = !sdrCaptureInProgress) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportDialog = false
+                pendingImportPayload = null
+            },
+            title = { Text("Confirm sample metadata") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "File: $pendingImportName · ${pendingImportPayload?.sampleCount ?: 0} samples. Enter metadata from the original capture/export settings; it cannot be inferred from sample values.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+                    )
+                    OutlinedTextField(
+                        value = importSampleRate,
+                        onValueChange = { importSampleRate = it },
+                        label = { Text("Sample rate (Hz) *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = importCenterFrequency,
+                        onValueChange = { importCenterFrequency = it },
+                        label = { Text("Center frequency (Hz; required for I/Q)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "The saved timestamp is the import time because the original capture timestamp is not collected here. Results are dBFS, not calibrated dBm. Real-sample frequency bins are baseband offsets; the center-frequency field is metadata only for real samples. Complex I/Q bins are centered around the entered center frequency.",
+                        color = Amber, fontSize = 11.sp, lineHeight = 16.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveAndAnalyzeImport) { Text("Import and analyse") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportDialog = false
+                    pendingImportPayload = null
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoteDialog = false },
+            title = { Text("Add field note") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This saves your own note as incomplete metadata. It does not create a sensor reading or RF measurement.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Observation note") },
+                        placeholder = { Text("Describe what you observed…") },
+                        minLines = 3,
+                        maxLines = 6,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveFieldNote) { Text("Save note") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun MetricPill(label: String, value: String) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(1.dp, GlassLine, RoundedCornerShape(13.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(value, color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        Text(label, color = Muted, fontSize = 10.sp, maxLines = 1)
     }
 }
 
@@ -969,8 +1775,8 @@ private fun AboutScreen() {
         InfoRow("Privacy", "Use authorized devices and respect local regulations", InstrumentIconKind.Lock, Stone)
 
         Text(
-            "This version is an interface foundation. The acquisition engines, persistent session database, " +
-                "plots based on actual samples, and hardware integrations require separate implementation and verification.",
+            "This version combines the Observatory Glass interface with SQLite-backed session workflows and CSV metadata export. " +
+                "Android Wi-Fi and Bluetooth Low Energy scan metadata are available with runtime permissions; physical handset behavior remains to be verified. Live optical acquisition, real-sample plots, and external SDR integration remain to be implemented.",
             color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
         )
     }
