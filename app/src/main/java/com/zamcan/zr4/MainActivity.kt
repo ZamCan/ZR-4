@@ -1,11 +1,13 @@
 package com.zamcan.zr4
 
+import android.app.Activity
 import android.os.Bundle
 import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,6 +35,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,8 +47,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,7 +81,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.zamcan.zr4.engine.ObservationSession
 import com.zamcan.zr4.engine.ObservationRecord
 import com.zamcan.zr4.engine.ObservationRecordState
@@ -129,32 +136,21 @@ import java.io.ByteArrayOutputStream
  * live measurements. The spectrum still says NO DATA until a verified source
  * supplies real samples.
  */
-private val Ink        = Color(0xFF090D0A)
-private val InkDeep    = Color(0xFF03070B)
-private val Emerald    = Color(0xFF151B16)
-private val Gold       = Color(0xFFD6B56D)
-private val GoldLight  = Color(0xFFF0D493)
-private val GoldDeep   = Color(0xFFB98F3E)
-private val InkLow     = Color(0xFF07130D)
-private val Amber      = Color(0xFFFFB86B)
-private val Mint       = Color(0xFF6EE7B7)
-private val Stone      = Color(0xFFC9BBA6)
-private val Paper      = Color(0xFFF2F5EC)
-private val Muted      = Color(0xFFAFBDB0)
-private val GlassLine  = Color.White.copy(alpha = 0.16f)
+// Colour tokens (Ink, Gold, Paper, Muted, GlassLine, …) are centralized in
+// ZrTheme.kt as palette getters so light/dark themes share one vocabulary.
 
 private fun glassBrush(tint: Color = Color.White): Brush = Brush.verticalGradient(
     colors = listOf(
         tint.copy(alpha = 0.16f),
-        Color.White.copy(alpha = 0.07f),
-        Color.Black.copy(alpha = 0.18f),
+        GlassMid,
+        GlassLow,
     ),
 )
 
 private fun glassBorder(accent: Color = Gold): Brush = Brush.linearGradient(
     colors = listOf(
-        Color.White.copy(alpha = 0.42f),
-        Color.White.copy(alpha = 0.08f),
+        BorderHi,
+        BorderMid,
         accent.copy(alpha = 0.32f),
     ),
 )
@@ -176,19 +172,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Gold,
-                    onPrimary = Ink,
-                    secondary = Mint,
-                    background = Ink,
-                    surface = Emerald,
-                    onBackground = Paper,
-                    onSurface = Paper,
-                ),
-            ) {
-                Zr4App()
-            }
+            Zr4App()
         }
     }
 }
@@ -197,10 +181,44 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Zr4App() {
+    val context = LocalContext.current
     var section by remember { mutableStateOf(AppSection.Overview) }
     var selectedSource by remember { mutableStateOf("External SDR") }
     var latestSpectrumFrame by remember { mutableStateOf<SpectrumFrame?>(null) }
 
+    // Appearance: persisted mode -> resolved palette -> token getters + M3 scheme.
+    var themeMode by remember { mutableStateOf(ZrPreferences.loadThemeMode(context)) }
+    val systemDark = isSystemInDarkTheme()
+    val palette = resolveZrPalette(themeMode, systemDark)
+    activeZrPalette = palette
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !palette.dark
+            controller.isAppearanceLightNavigationBars = !palette.dark
+        }
+    }
+
+    // System Back returns to Overview before leaving the app.
+    BackHandler(enabled = section != AppSection.Overview) {
+        section = AppSection.Overview
+    }
+
+    MaterialTheme(
+        colorScheme = if (palette.dark) {
+            darkColorScheme(
+                primary = Gold, onPrimary = Ink, secondary = Mint,
+                background = Ink, surface = Emerald, onBackground = Paper, onSurface = Paper,
+            )
+        } else {
+            lightColorScheme(
+                primary = Gold, onPrimary = Ink, secondary = Mint,
+                background = Ink, surface = Emerald, onBackground = Paper, onSurface = Paper,
+            )
+        },
+    ) {
     Box(Modifier.fillMaxSize().background(InkDeep)) {
         AuroraBackground()
         Scaffold(
@@ -274,6 +292,7 @@ private fun Zr4App() {
             }
         }
     }
+    }
 }
 
 /** Slow aurora wash: gold (top-right), teal (left), violet (bottom). Decorative only. */
@@ -316,7 +335,7 @@ private fun FloatingGlassNav(section: AppSection, onSelect: (AppSection) -> Unit
                 .clip(RoundedCornerShape(28.dp))
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.14f), Color.Black.copy(alpha = 0.34f)),
+                        listOf(GlassMid, GlassLow),
                     ),
                 )
                 .border(1.dp, glassBorder(), RoundedCornerShape(28.dp))
@@ -421,7 +440,7 @@ private fun GlassChip(dot: Color, text: String) {
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(GlassMid)
             .border(1.dp, dot.copy(alpha = 0.5f), CircleShape)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -527,7 +546,7 @@ private fun GlassButton(text: String, onClick: () -> Unit, modifier: Modifier = 
         modifier = modifier
             .height(52.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.07f))
+            .background(GlassMid)
             .border(1.dp, GlassLine, RoundedCornerShape(16.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp),
@@ -754,11 +773,11 @@ private fun SpectrumPanel(selectedSource: String, frame: SpectrumFrame?) {
             Canvas(Modifier.fillMaxSize().padding(12.dp)) {
                 for (i in 0..4) {
                     val y = size.height * i / 4
-                    drawLine(GlassLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                    drawLine(PlotLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
                 for (i in 0..6) {
                     val x = size.width * i / 6
-                    drawLine(GlassLine, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
+                    drawLine(PlotLine, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
                 }
                 val amplitudes = frame?.amplitudeDbfs
                 if (amplitudes != null && amplitudes.size > 1) {
@@ -1721,7 +1740,7 @@ private fun MetricPill(label: String, value: String) {
     Column(
         Modifier
             .clip(RoundedCornerShape(13.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(GlassMid)
             .border(1.dp, GlassLine, RoundedCornerShape(13.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
