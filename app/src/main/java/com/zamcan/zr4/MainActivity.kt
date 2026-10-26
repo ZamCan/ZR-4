@@ -268,7 +268,6 @@ private fun Zr4App() {
                                 section = AppSection.Sources
                             },
                             spectrumFrame = latestSpectrumFrame,
-                            onExploreSources = { section = AppSection.Sources },
                             onOpenSessions = { section = AppSection.Sessions },
                         )
                         AppSection.Sources -> SourcesScreen(
@@ -623,21 +622,24 @@ private fun OverviewScreen(
     selectedSource: String,
     onOpenSource: (String) -> Unit,
     spectrumFrame: SpectrumFrame?,
-    onExploreSources: () -> Unit,
     onOpenSessions: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Eyebrow("OBSERVATORY / OVERVIEW")
-            Text("Measure what is real.", fontSize = 27.sp, fontWeight = FontWeight.Black, lineHeight = 32.sp)
+            Text("Measure what is real.", fontSize = 25.sp, fontWeight = FontWeight.Black, lineHeight = 30.sp)
             Text(
-                "A local-first workspace for optical observations, Android-reported radio data, " +
-                    "and compatible external receivers.",
-                color = Muted, fontSize = 14.sp, lineHeight = 21.sp,
+                "Optical · Android Wi-Fi/BLE · RTL-TCP SDR — local only.",
+                color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
             )
         }
 
-        StatusHero(hasMeasurement = spectrumFrame != null, onExploreSources = onExploreSources)
+        StatusHero(hasMeasurement = spectrumFrame != null, onOpenSessions = onOpenSessions)
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionHeading("INSTRUMENT STATUS", "THIS DEVICE")
+            InstrumentStatusPanel(spectrumFrame)
+        }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionHeading("SPECTRUM", if (spectrumFrame == null) spectrumStateFor(selectedSource).first else "ANALYSED INPUT")
@@ -660,10 +662,10 @@ private fun OverviewScreen(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT", onClick = { onOpenSource("Optical observation") })
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi snapshots and bounded BLE observations", "OS-LIMITED", onClick = { onOpenSource("Wi-Fi and Bluetooth") })
-                        SourceSummary("RTL-TCP network SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q from a configured rtl_tcp server", "NETWORK / HARDWARE", onClick = { onOpenSource("External SDR") })
-                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY", onClick = onOpenSessions)
+                        SourceActionRow("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT") { onOpenSource("Optical observation") }
+                        SourceActionRow("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi snapshots and bounded BLE observations", "OS-LIMITED") { onOpenSource("Wi-Fi and Bluetooth") }
+                        SourceActionRow("RTL-TCP network SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q from a configured rtl_tcp server", "NETWORK / HARDWARE") { onOpenSource("External SDR") }
+                        SourceActionRow("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY", onOpenSessions)
                     }
                 }
             }
@@ -678,7 +680,7 @@ private fun OverviewScreen(
 }
 
 @Composable
-private fun StatusHero(hasMeasurement: Boolean, onExploreSources: () -> Unit) {
+private fun StatusHero(hasMeasurement: Boolean, onOpenSessions: () -> Unit) {
     GlassPanel(accent = Gold, shape = RoundedCornerShape(28.dp), padding = 0.dp) {
         Box {
             Canvas(Modifier.fillMaxSize()) {
@@ -707,8 +709,126 @@ private fun StatusHero(hasMeasurement: Boolean, onExploreSources: () -> Unit) {
                     TrustTag("OFFLINE-FIRST")
                     TrustTag("SOURCE-VERIFIED")
                 }
-                GoldButton("Configure observation source", onExploreSources, Modifier.fillMaxWidth())
+                GoldButton(if (hasMeasurement) "Inspect evidence in Sessions" else "Start an observation session", onOpenSessions, Modifier.fillMaxWidth())
             }
+        }
+    }
+}
+
+
+/**
+ * Real, on-device instrument status: hardware features as reported by the
+ * package manager, current permission state, the saved (never "connected")
+ * RTL-TCP endpoint, local storage, and the latest analysis held by the
+ * shell. Permissions are only *displayed* here — they are requested in
+ * Sessions at the moment of recording, per platform guidance.
+ */
+@Composable
+private fun InstrumentStatusPanel(spectrumFrame: SpectrumFrame?) {
+    val context = LocalContext.current
+    val packageManager = context.packageManager
+    val hasWifi = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+    val hasBluetoothLe = packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
+    fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    val wifiReady = granted(Manifest.permission.ACCESS_FINE_LOCATION)
+    val bluetoothReady = if (Build.VERSION.SDK_INT >= 31) {
+        granted(Manifest.permission.BLUETOOTH_SCAN) && granted(Manifest.permission.BLUETOOTH_CONNECT)
+    } else {
+        granted(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+    val receiverHost = remember { ZrPreferences.loadReceiverHost(context) }
+    val receiverPort = remember { ZrPreferences.loadReceiverPort(context) }
+    val latest = spectrumFrame?.let { frame ->
+        val capturedAt = frame.provenance?.capturedAtEpochMillis
+        if (capturedAt == null) {
+            "${frame.sampleCount} samples · relative dBFS"
+        } else {
+            val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(capturedAt))
+            "${frame.sampleCount} samples · $time · relative dBFS"
+        }
+    }
+    GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 16.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatusRow(
+                InstrumentIconKind.Radio, Mint, "Wi-Fi observation",
+                when {
+                    !hasWifi -> "No Wi-Fi interface reported by this device"
+                    wifiReady -> "Permission granted · Android API-limited snapshots"
+                    else -> "Permission not granted · asked in Sessions when you record"
+                },
+            )
+            StatusRow(
+                InstrumentIconKind.Waveform, Mint, "Bluetooth LE",
+                when {
+                    !hasBluetoothLe -> "No Bluetooth LE reported by this device"
+                    bluetoothReady -> "Permission granted · bounded 5-second scans"
+                    else -> "Permission not granted · asked in Sessions when you record"
+                },
+            )
+            StatusRow(
+                InstrumentIconKind.Antenna, Amber, "RTL-TCP receiver",
+                if (receiverHost.isBlank()) "No endpoint saved · configure in Sessions"
+                else "Endpoint saved · $receiverHost:$receiverPort · not connected",
+            )
+            StatusRow(
+                InstrumentIconKind.Layers, Stone, "Local sessions",
+                "SQLite storage on this device · exportable to CSV",
+            )
+            StatusRow(
+                InstrumentIconKind.Crosshair, Gold, "Latest analysis",
+                latest ?: "No analysed capture in this launch",
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusRow(icon: InstrumentIconKind, tint: Color, label: String, state: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "$label: $state" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        IconBadge(icon, tint, 36.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(state, color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+        }
+        Box(Modifier.size(8.dp).background(tint, CircleShape))
+    }
+}
+
+/** Compact single-line channel action used on phones; wide layouts keep cards. */
+@Composable
+private fun SourceActionRow(
+    title: String,
+    icon: InstrumentIconKind,
+    tint: Color,
+    detail: String,
+    status: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(glassBrush(tint))
+            .border(1.dp, glassBorder(tint), RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "$title. $detail. Status: $status. Inspect." }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        IconBadge(icon, tint, 38.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(status, color = tint, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, maxLines = 1)
+            Text("INSPECT", color = Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         }
     }
 }
