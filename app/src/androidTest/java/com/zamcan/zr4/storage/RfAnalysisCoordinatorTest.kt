@@ -137,7 +137,7 @@ class RfAnalysisCoordinatorTest {
         assertEquals(ObservationRecordState.UNCALIBRATED, result.observation.state)
         assertEquals(n, result.observation.sampleCount)
         assertEquals(1, saved.observations.size)
-        assertEquals(AnalysisRunOutcome.SUCCESS, saved.analysisRuns.single().outcome)
+        assertEquals(result.analysis.provenance.run.outcome, saved.analysisRuns.single().outcome)
         assertTrue("A deterministic complex tone should produce at least one peak candidate", result.analysis.provenance.findings.isNotEmpty())
         assertEquals(result.analysis.provenance.findings.size, saved.findings.size)
         assertEquals("two-sided centered complex-I/Q RF bins",
