@@ -159,6 +159,7 @@ private enum class AppSection(val label: String, val icon: InstrumentIconKind) {
     Overview("Overview", InstrumentIconKind.Crosshair),
     Sources("Sources", InstrumentIconKind.Waveform),
     Sessions("Sessions", InstrumentIconKind.Layers),
+    Settings("Settings", InstrumentIconKind.Settings),
     About("About", InstrumentIconKind.Info),
 }
 
@@ -276,6 +277,15 @@ private fun Zr4App() {
                         )
                         AppSection.Sessions -> SessionsScreen(
                             onSpectrumFrame = { latestSpectrumFrame = it }
+                        )
+                        AppSection.Settings -> SettingsScreen(
+                            themeMode = themeMode,
+                            onThemeModeChange = { mode ->
+                                themeMode = mode
+                                ZrPreferences.saveThemeMode(context, mode)
+                            },
+                            onOpenSessions = { section = AppSection.Sessions },
+                            onOpenAbout = { section = AppSection.About },
                         )
                         AppSection.About -> AboutScreen()
                     }
@@ -1028,11 +1038,13 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
     var bluetoothScanInProgress by remember { mutableStateOf(false) }
     var showSdrDialog by remember { mutableStateOf(false) }
     var sdrCaptureInProgress by remember { mutableStateOf(false) }
-    var sdrHost by remember { mutableStateOf("") }
-    var sdrPort by remember { mutableStateOf("1234") }
+    var sdrHost by remember { mutableStateOf(ZrPreferences.loadReceiverHost(context)) }
+    var sdrPort by remember { mutableStateOf(ZrPreferences.loadReceiverPort(context)) }
     var sdrCenterFrequency by remember { mutableStateOf("100000000") }
     var sdrSampleRate by remember { mutableStateOf("2048000") }
     var sdrSampleCount by remember { mutableStateOf("4096") }
+    // The last-used receiver endpoint is remembered on-device (shown in Settings).
+    LaunchedEffect(sdrHost, sdrPort) { ZrPreferences.saveReceiverEndpoint(context, sdrHost, sdrPort) }
 
     val createCsvDocument = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -1748,6 +1760,135 @@ private fun MetricPill(label: String, value: String) {
     ) {
         Text(value, color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black)
         Text(label, color = Muted, fontSize = 10.sp, maxLines = 1)
+    }
+}
+
+/* --------------------------------------------------------------- settings */
+
+@Suppress("DEPRECATION")
+@Composable
+private fun SettingsScreen(
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
+    onOpenSessions: () -> Unit,
+    onOpenAbout: () -> Unit,
+) {
+    val context = LocalContext.current
+    val savedHost = remember { ZrPreferences.loadReceiverHost(context) }
+    val savedPort = remember { ZrPreferences.loadReceiverPort(context) }
+    val versionName = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "—"
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Eyebrow("SETTINGS / PREFERENCES")
+            Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Black, lineHeight = 32.sp)
+            Text(
+                "Only preferences that change real behaviour live here. Everything is stored on this device.",
+                color = Muted, fontSize = 14.sp, lineHeight = 21.sp,
+            )
+        }
+
+        GlassPanel(accent = Gold, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                ) {
+                    IconBadge(InstrumentIconKind.Settings, Gold, 38.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Appearance", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Applies immediately and is remembered across launches.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+                ThemeMode.values().forEach { mode ->
+                    ThemeOptionRow(mode, selected = mode == themeMode) { onThemeModeChange(mode) }
+                }
+            }
+        }
+
+        GlassPanel(accent = Amber, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                ) {
+                    IconBadge(InstrumentIconKind.Antenna, Amber, 38.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("RTL-TCP receiver", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("External SDR over a network rtl_tcp server.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    if (savedHost.isBlank()) {
+                        "No receiver endpoint saved yet. The host and port used for an SDR capture in " +
+                            "Sessions are remembered here as the default for the next capture."
+                    } else {
+                        "Saved endpoint: $savedHost:$savedPort — prefilled for SDR captures in Sessions. " +
+                            "Connection and capture happen there, only when you start them."
+                    },
+                    color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
+                )
+                GlassButton("Configure receiver in Sessions", onOpenSessions, Modifier.fillMaxWidth())
+            }
+        }
+
+        GlassPanel(accent = Mint, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(11.dp),
+                ) {
+                    IconBadge(InstrumentIconKind.Lock, Mint, 38.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Data and privacy", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Local-first by design.", color = Muted, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    "Sessions and observations are kept in the on-device database; Android backup is " +
+                        "disabled for this app. There are no accounts, analytics, or uploads. The only " +
+                        "network connection ZR 4 makes is to the rtl_tcp server you configure for an " +
+                        "SDR capture, and only while that capture runs.",
+                    color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
+                )
+            }
+        }
+
+        InfoRow("Application", "ZR 4 · com.zamcan.zr4", InstrumentIconKind.Diamond, Gold)
+        InfoRow("Version", versionName, InstrumentIconKind.Grid, Mint)
+        GlassButton("About ZR 4", onOpenAbout, Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun ThemeOptionRow(mode: ThemeMode, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Gold.copy(alpha = 0.14f) else GlassMid)
+            .border(1.dp, if (selected) Gold.copy(alpha = 0.55f) else GlassLine, RoundedCornerShape(16.dp))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .semantics { contentDescription = "${mode.label}. ${mode.detail}" }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            Modifier
+                .size(20.dp)
+                .border(2.dp, if (selected) Gold else Muted, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(10.dp).background(Gold, CircleShape))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(mode.label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(mode.detail, color = Muted, fontSize = 12.sp)
+        }
+        if (selected) InstrumentIcon(InstrumentIconKind.Check, Gold, Modifier.size(18.dp))
     }
 }
 
