@@ -1,23 +1,20 @@
 # ZR 4 — Observatory Glass design system
 
-The website-like flat panel layout has been replaced by a native, premium
-glassmorphic instrument interface. All product principles are unchanged:
+The interface now uses five task-oriented destinations (Home, Observe, Spectrum, Sessions, Settings), a compact Home dashboard, and a dedicated spectrum workspace. The visual system remains native Compose and offline-first. All product principles are unchanged:
 no simulated reading is ever presented as a live measurement.
 
 ## Colour relationships (intentional)
 
 | Role | Colour | Meaning |
 |---|---|---|
-| Observatory ink | `#050B08` / `#07130D` | Night base; makes glass and gold luminous |
+| Observatory ink | Dark `#050B08` / light `#F3F5F0` surfaces | Night base and neutral day surfaces |
 | Instrument gold | `#D6B56D` | The single action/identity accent (brass-instrument analogue) |
 | Signal mint | `#6EE7B7` | Gold's cool complement — *system-ready / local* meaning only |
 | Amber | `#FFB86B` | Hardware-dependent modules (SDR) |
 | Warm stone | `#C9BBA6` | Neutral graphite-family tint for sessions/records surfaces |
-| Paper / muted sage | `#F2F5EC` / `#AFBDB0` | Text hierarchy on ink |
+| Paper / muted sage | Dark `#F2F5EC` / light `#202820`, with muted sage per palette | Text hierarchy in both appearance modes |
 
-Gold = act/identify, mint = ready/local, amber = hardware-gated, stone =
-records. Warning/error hues are reserved for real states. A colour never
-changes meaning between screens, and there are no electric-blue gradients.
+Gold = act/identify, mint = ready/local, amber = hardware-gated, stone = records. Settings offers System, Light, and Dark appearance modes and persists the selection locally. System mode follows Android's night configuration. Warning/error hues are reserved for real states. A colour never changes meaning between screens, and there are no electric-blue gradients.
 
 ## Glass, without a blur library
 
@@ -38,6 +35,8 @@ export, check, lock, grid) — one stroke weight with round caps/joins. This
 module ships no icon library, and no dependency was added for icons. No
 emoji and no Unicode text glyphs are used as icons; every icon is paired with
 a text label, and interactive semantics live on the containing control.
+The adaptive launcher includes a separate monochrome vector for themed Android
+icons; launcher and in-app branding remain local resources with no network dependency.
 Each module keeps its own tint from the table above.
 
 ## Logo (PNG only)
@@ -53,36 +52,19 @@ and re-export the densities — never hand-edit a single density.
 
 ## Motion
 
-Section changes cross-fade (340 ms); navigation pills and card selection
-animate colour (240–260 ms). There are no continuous decorative animations:
-the standby state is static, and the spectrum still shows an empty grid and
-**NO DATA** — motion never fabricates a signal. Each screen has one primary
-CTA (Overview: "Configure observation source"); other actions are secondary.
+Section changes cross-fade (340 ms); navigation selection and source choice animate colour. There are no continuous decorative animations: the standby state is static, and an empty spectrum shows **NO DATA** — motion never fabricates a signal. Home exposes Observe and Spectrum actions; Observe routes to actual session controls rather than claiming selection started acquisition.
 
 ## Spectrum state model (interface state, not data)
 
-The Overview spectrum pane is driven by the module selected on the Sources
-screen — and by nothing else. `spectrumStateFor()` distinguishes **NO
-SOURCE**, **NOT IMPLEMENTED** (optical, Wi-Fi/Bluetooth) and **HARDWARE
-REQUIRED** (external SDR), each with its own waiting/empty explanation. In
-every state the plot is an empty grid labelled **NO DATA** with an
-unavailable frequency axis: no samples, peaks, levels, or units are ever
-invented to fill it. The pane is titled "Spectrum", never "Live", until a
-verified source is actually supplying samples.
+The dedicated Spectrum screen shows the latest computed `SpectrumFrame` when imported samples or a real RTL-TCP capture have passed through the analysis pipeline. Without a frame it shows **NO DATA** and an explicit source-specific explanation. Real frames show their sample count, frequency-axis interpretation, capture provenance, and relative dBFS levels. The graph is a computed snapshot, not a live continuous waterfall; no sample, peak, level, or unit is invented.
 
 ## Findings evidence language
 
-The Sessions screen carries an evidence-only Findings empty state. Findings
-may be created only from acquired samples with source, time, units, and
-configuration recorded; anything unverified is labelled **"candidate
-detected"** — never a confirmed transmitter or protocol. Technical detail
-belongs in a future finding-detail view, not on the overview.
+The Sessions screen is wired to the local SQLite database for session creation, inspection, closing, observation association, analysis findings, and CSV metadata export. Findings require a successful analysis record and preserve provenance; a detected peak is a candidate feature, never a confirmed transmitter or protocol. Raw I/Q/sample arrays are not persisted as observation metadata.
 
 ## Type floor
 
-Micro-labels (eyebrows, chips, statuses, axis captions) have a hard floor of
-10.5sp/11sp so the instrument stays legible at system font scales; nothing
-shrinks below that to make a layout fit.
+Primary actions, labels, status chips, and body copy use a clear readable hierarchy. Compact plot-axis captions are secondary and their meaning is repeated in the spectrum context rows; controls should remain usable at increased system font sizes and never rely on tiny text alone.
 
 ## Adaptive-icon foreground
 
@@ -96,15 +78,4 @@ zone) at every density. Nothing is redrawn or re-proportioned.
 
 ## Shell, spectrum context, and selection semantics
 
-The product identity now lives in a **pinned compact glass top bar**
-(status-bar inset respected); screens scroll beneath it, so "where am I"
-never scrolls away. Under the empty spectrum, a measurement-context strip
-(source, observation time, frequency·level·units) shows explicit dashes
-until real samples exist — the fields are present, values are never
-invented. Navigation uses proper tab semantics, source cards behave as a
-radio group, and both button styles expose the Button role.
-
-Session copy is layered-accurate: the engine layer defines traceable
-sessions/observations/analysis runs (algorithm, version, parameters,
-outcome), but they are **not yet connected to this interface or persisted** —
-Sessions says exactly that instead of implying storage is absent entirely.
+The product identity lives in a compact pinned top bar, with system insets respected. The five navigation destinations expose Home, Observe, Spectrum, Sessions, and Settings; navigation controls carry tab semantics and source choices use radio-group semantics. The spectrum context rows show source, observation time, frequency interpretation, sample count, and units, with explicit unavailable values until real samples exist. Sessions is connected to local SQLite and CSV export; it does not store raw I/Q payloads.

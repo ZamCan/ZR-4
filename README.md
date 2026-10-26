@@ -43,9 +43,9 @@ Raw IQ/sample payloads are intentionally not stored in the metadata database. Un
 
 - Premium glassmorphic panels with a restrained aurora background; no blur-library dependency
 - Instrument gold for primary actions/identity, mint for ready/local states, amber for hardware-gated modules, and warm stone for records
-- Custom Canvas line icons, branded PNG launcher assets, compact pinned header, floating bottom navigation, responsive source panels, and Overview / Sources / Sessions / About sections
-- Empty spectrum states remain explicitly **NO DATA** until real samples exist; imported or network-captured I/Q produces a computed dBFS spectrum frame (not a live continuous waterfall)
-- Source selection and navigation are interface actions only; selecting a module does not start acquisition
+- Custom Canvas line icons, branded PNG launcher/adaptive-icon assets, a native Android 12+ splash theme, compact five-destination navigation (Home / Observe / Spectrum / Sessions / Settings), and dedicated spectrum and appearance-settings screens
+- Light, dark, and follow-system palettes are selectable in Settings and persisted locally; theme changes apply immediately. Empty spectrum states remain explicitly **NO DATA** until real samples exist; imported or network-captured I/Q produces a computed dBFS spectrum frame (not a live continuous waterfall)
+- Source selection and navigation are interface actions only; selecting a module does not start acquisition. Home uses a compact two-column source summary; Spectrum is a dedicated destination rather than being embedded in the long Home page
 - Session workspace uses SQLite for persisted session workflows and offers CSV export; no placeholder measurements are shown
 
 See [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) and [docs/brand/](docs/brand/). See [docs/ANALYSIS-ARCHITECTURE.md](docs/ANALYSIS-ARCHITECTURE.md) for the analysis-to-storage pipeline and acquisition boundaries.
@@ -74,7 +74,7 @@ Run the Android instrumentation tests on a connected device/emulator:
 ./tools/build.sh connectedDebugAndroidTest
 ```
 
-The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. Recent fast CI run [#40278617251](https://github.com/ZamCan/ZR-4/actions/runs/40278617251) passed APK assembly, JVM unit tests, and debug APK artifact upload on the related instrumentation-fix branch. This PR's exact head still needs its own fast CI result. Emulator instrumentation is intentionally manual because prior runs were excessively long; physical handset and RTL-SDR validation remain separate.
+The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. The latest UI-branch fast CI run [#40379642043](https://github.com/ZamCan/ZR-4/actions/runs/40379642043) passed debug APK assembly, JVM unit tests, Android instrumentation-test APK compilation, and debug APK artifact upload. The emulator test suite was not executed in that fast run; physical handset and RTL-SDR validation remain separate.
 
 ## Live device log capture
 
@@ -86,7 +86,9 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 ## Staged roadmap
 
 - [x] Buildable Android foundation and truthful empty-data states
-- [x] Launcher identity, reusable build tooling, Observatory Glass UI
+- [x] Launcher identity, native Android 12+ splash resources, reusable build tooling, Observatory Glass UI foundation
+- [x] Five-destination native instrument navigation and persisted System / Light / Dark appearance preference
+- [x] Dedicated spectrum screen, compact Home dashboard, and Settings / About surface
 - [x] Deterministic DSP/detection foundation and traceable analysis records
 - [x] SQLite persistence engine and Android instrumentation tests authored
 - [x] GitHub Actions build, JVM tests and APK artifact upload passed for the combined RTL-TCP branch (run #89); emulator instrumentation remains a separate manual run
@@ -104,7 +106,7 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 
 Use ZR 4 only with devices and radio environments you are authorized to observe. Respect local radio regulations and privacy. Do not claim frequency, power, dBm, bandwidth, noise-floor, or calibration values unless the actual source supports them. Record calibration and uncertainty where relevant.
 
-**Status:** RTL-TCP analysis integration is implemented online. The latest successful fast run is linked above, but this PR's exact head needs fresh fast CI. Emulator instrumentation and physical handset/receiver checks remain outstanding. A successful build does not prove real hardware acquisition.
+**Status:** The native UI engineering branch has passed fast CI for APK assembly, JVM tests, instrumentation-test compilation, and artifact upload. Emulator instrumentation and physical handset/receiver tests remain outstanding. A successful build does not prove real hardware acquisition.
 
 
 ## Local device validation and safe in-place updates
