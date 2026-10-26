@@ -1777,7 +1777,7 @@ private fun SpectrumScreen(
             SectionHeading("INPUT STATUS", if (frame == null) "NO DATA" else "ANALYSIS READY")
             Spacer(Modifier.height(8.dp))
             Text(
-                if (frame == null) "No analysed sample frame is available yet." else "Source: ${frame.provenance.hardwareDescription}",
+                if (frame == null) "No analysed sample frame is available yet." else "Source: ${frame.provenance?.hardwareDescription ?: "Unknown source"}",
                 color = Paper, fontSize = 13.sp, lineHeight = 19.sp,
             )
             Spacer(Modifier.height(8.dp))
