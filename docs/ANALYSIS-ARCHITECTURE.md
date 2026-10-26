@@ -47,18 +47,18 @@ The Sessions screen can run a bounded five-second Android BLE scan after the req
 
 The pure Kotlin receiver contract defines explicit driver registration, device discovery, capability declarations, bounded capture requests, normalized complex-I/Q payload validation, and capture metadata checks. A registry with no registered driver returns no devices; it never synthesizes receiver data. Each driver must declare its supported frequency range and discrete sample rates, and capture metadata must match the requested center frequency, sample rate, and sample count. The capture object defensively copies sample arrays and validates finite normalized values in [-1, 1]. A calibration label is descriptive metadata, not proof of calibration.
 
-This is an integration boundary plus a driver-to-analysis adapter: no USB/network SDR driver is bundled, and no hardware capability is inferred from a USB vendor/product ID. A registered driver connection can feed validated I/Q into the analysis pipeline, but actual receiver discovery and physical capture remain driver-specific and unvalidated until a compatible receiver is tested. Driver-specific discovery, permissions, configuration, and physical-device validation remain separate work.
+The registry is hardware-neutral and does not infer hardware from USB vendor/product IDs. The RTL-TCP network driver is implemented for a user-configured remote endpoint: it verifies the RTL0 handshake, sends frequency/sample-rate/gain commands, converts unsigned interleaved 8-bit I/Q to normalized complex samples, and returns validated captures to the analysis coordinator. A local protocol-server test covers the network protocol but is not a physical receiver test. Direct USB acquisition and physical receiver validation remain outstanding.
 
 ## Verification boundary
 
-GitHub Actions has successfully assembled the debug APK and run both JVM tests and Android emulator instrumentation tests for the Wi-Fi-integrated branch. The BLE implementation is undergoing a separate CI run. Emulator tests do not validate the handset-specific behavior of Wi-Fi scan throttling, location services, BLE availability, or permission prompts; those checks remain necessary on physical devices.
+GitHub Actions has successfully assembled the debug APK and run JVM tests for the RTL-TCP engineering branch. Emulator instrumentation is now a separate manual workflow because the full emulator job took more than 30 minutes and previously exposed an overly strict test expectation; the test was corrected to assert the actual detector outcome. Emulator and JVM tests do not validate a physical RTL-SDR, phone-specific radio behavior, Wi-Fi scan throttling, location services, BLE availability, or permission prompts.
 
 ## Not yet implemented
 
 - Live optical camera sampling and blink-timing acquisition.
-- External SDR driver implementation, USB/network device discovery, and physical hardware validation.
+- Direct USB SDR driver implementation and physical hardware validation.
 - Physical handset validation of Android Wi-Fi/BLE permission behavior, scan throttling, and hardware availability.
-- USB SDR discovery, acquisition, and a verified raw-sample-to-analysis UI workflow.
+- Direct USB SDR discovery/acquisition. RTL-TCP network I/Q capture and computed spectrum plotting are implemented but still require testing with a physical receiver.
 
 Do not display synthetic fixtures as live data. Do not infer transmitter identity or protocol from a spectral peak. Source selection in the UI is not itself acquisition. Android Wi-Fi scan metadata is not passed to the normalized-sample analysis pipeline.
 
