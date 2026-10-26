@@ -14,6 +14,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -129,19 +131,52 @@ import java.io.ByteArrayOutputStream
  * live measurements. The spectrum still says NO DATA until a verified source
  * supplies real samples.
  */
-private val Ink        = Color(0xFF090D0A)
-private val InkDeep    = Color(0xFF03070B)
-private val Emerald    = Color(0xFF151B16)
-private val Gold       = Color(0xFFD6B56D)
-private val GoldLight  = Color(0xFFF0D493)
-private val GoldDeep   = Color(0xFFB98F3E)
-private val InkLow     = Color(0xFF07130D)
-private val Amber      = Color(0xFFFFB86B)
-private val Mint       = Color(0xFF6EE7B7)
-private val Stone      = Color(0xFFC9BBA6)
-private val Paper      = Color(0xFFF2F5EC)
-private val Muted      = Color(0xFFAFBDB0)
-private val GlassLine  = Color.White.copy(alpha = 0.16f)
+private var Ink by mutableStateOf(Color(0xFF090D0A))
+private var InkDeep by mutableStateOf(Color(0xFF03070B))
+private var Emerald by mutableStateOf(Color(0xFF151B16))
+private var Gold by mutableStateOf(Color(0xFFD6B56D))
+private var GoldLight by mutableStateOf(Color(0xFFF0D493))
+private var GoldDeep by mutableStateOf(Color(0xFFB98F3E))
+private var InkLow by mutableStateOf(Color(0xFF07130D))
+private var Amber by mutableStateOf(Color(0xFFFFB86B))
+private var Mint by mutableStateOf(Color(0xFF6EE7B7))
+private var Stone by mutableStateOf(Color(0xFFC9BBA6))
+private var Paper by mutableStateOf(Color(0xFFF2F5EC))
+private var Muted by mutableStateOf(Color(0xFFAFBDB0))
+private var GlassLine by mutableStateOf(Color.White.copy(alpha = 0.16f))
+
+private enum class AppThemeMode(val storedValue: String, val label: String, val detail: String) {
+    System("system", "System", "Follow device"),
+    Light("light", "Light", "Bright surfaces"),
+    Dark("dark", "Dark", "Low-light use");
+
+    companion object {
+        fun fromStored(value: String?): AppThemeMode =
+            entries.firstOrNull { it.storedValue == value } ?: System
+    }
+
+    fun isDark(systemDark: Boolean): Boolean = when (this) {
+        System -> systemDark
+        Light -> false
+        Dark -> true
+    }
+}
+
+private fun applyInstrumentPalette(dark: Boolean) {
+    if (dark) {
+        Ink = Color(0xFF090D0A); InkDeep = Color(0xFF03070B); Emerald = Color(0xFF151B16)
+        Gold = Color(0xFFD6B56D); GoldLight = Color(0xFFF0D493); GoldDeep = Color(0xFFB98F3E)
+        InkLow = Color(0xFF07130D); Amber = Color(0xFFFFB86B); Mint = Color(0xFF6EE7B7)
+        Stone = Color(0xFFC9BBA6); Paper = Color(0xFFF2F5EC); Muted = Color(0xFFAFBDB0)
+        GlassLine = Color.White.copy(alpha = 0.16f)
+    } else {
+        Ink = Color(0xFF202820); InkDeep = Color(0xFFF3F5F0); Emerald = Color(0xFFFFFFFF)
+        Gold = Color(0xFF8B641D); GoldLight = Color(0xFFE0C27A); GoldDeep = Color(0xFF6F4D12)
+        InkLow = Color(0xFFE8EEE6); Amber = Color(0xFF8A4B08); Mint = Color(0xFF087A58)
+        Stone = Color(0xFF6E6250); Paper = Color(0xFF202820); Muted = Color(0xFF5C685F)
+        GlassLine = Color(0xFFBCC7BD)
+    }
+}
 
 private fun glassBrush(tint: Color = Color.White): Brush = Brush.verticalGradient(
     colors = listOf(
@@ -160,10 +195,11 @@ private fun glassBorder(accent: Color = Gold): Brush = Brush.linearGradient(
 )
 
 private enum class AppSection(val label: String, val icon: InstrumentIconKind) {
-    Overview("Overview", InstrumentIconKind.Crosshair),
-    Sources("Sources", InstrumentIconKind.Waveform),
+    Overview("Home", InstrumentIconKind.Home),
+    Sources("Observe", InstrumentIconKind.Radio),
+    Spectrum("Spectrum", InstrumentIconKind.Waveform),
     Sessions("Sessions", InstrumentIconKind.Layers),
-    About("About", InstrumentIconKind.Info),
+    Settings("Settings", InstrumentIconKind.Settings),
 }
 
 private enum class InstrumentIconKind {
@@ -172,22 +208,37 @@ private enum class InstrumentIconKind {
 }
 
 class MainActivity : ComponentActivity() {
+    private val preferences by lazy { getSharedPreferences("zr4_preferences", MODE_PRIVATE) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        val initialTheme = AppThemeMode.fromStored(preferences.getString("appearance", "system"))
         setContent {
+            var themeMode by remember { mutableStateOf(initialTheme) }
+            val systemDark = isSystemInDarkTheme()
+            val dark = themeMode.isDark(systemDark)
+            LaunchedEffect(dark) { applyInstrumentPalette(dark) }
             MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Gold,
-                    onPrimary = Ink,
-                    secondary = Mint,
-                    background = Ink,
-                    surface = Emerald,
-                    onBackground = Paper,
-                    onSurface = Paper,
-                ),
+                colorScheme = if (dark) {
+                    darkColorScheme(
+                        primary = Gold, onPrimary = Ink, secondary = Mint,
+                        background = InkDeep, surface = Emerald, onBackground = Paper, onSurface = Paper,
+                    )
+                } else {
+                    lightColorScheme(
+                        primary = Gold, onPrimary = Color.White, secondary = Mint,
+                        background = InkDeep, surface = Emerald, onBackground = Paper, onSurface = Paper,
+                    )
+                },
             ) {
-                Zr4App()
+                Zr4App(
+                    themeMode = themeMode,
+                    onThemeModeChange = { selected ->
+                        themeMode = selected
+                        preferences.edit().putString("appearance", selected.storedValue).apply()
+                    },
+                )
             }
         }
     }
@@ -196,7 +247,10 @@ class MainActivity : ComponentActivity() {
 /* ------------------------------------------------------------------ shell */
 
 @Composable
-private fun Zr4App() {
+private fun Zr4App(
+    themeMode: AppThemeMode,
+    onThemeModeChange: (AppThemeMode) -> Unit,
+) {
     var section by remember { mutableStateOf(AppSection.Overview) }
     var selectedSource by remember { mutableStateOf("External SDR") }
     var latestSpectrumFrame by remember { mutableStateOf<SpectrumFrame?>(null) }
@@ -246,24 +300,32 @@ private fun Zr4App() {
                             selectedSource = selectedSource,
                             spectrumFrame = latestSpectrumFrame,
                             onExploreSources = { section = AppSection.Sources },
-                            onOpenSessions = { section = AppSection.Sessions },
+                            onOpenSpectrum = { section = AppSection.Spectrum },
                         )
                         AppSection.Sources -> SourcesScreen(
                             selectedSource = selectedSource,
                             onSelectSource = { selectedSource = it },
                         )
+                        AppSection.Spectrum -> SpectrumScreen(
+                            selectedSource = selectedSource,
+                            frame = latestSpectrumFrame,
+                            onOpenSessions = { section = AppSection.Sessions },
+                        )
                         AppSection.Sessions -> SessionsScreen(
                             onSpectrumFrame = { latestSpectrumFrame = it }
                         )
-                        AppSection.About -> AboutScreen()
+                        AppSection.Settings -> SettingsScreen(
+                            themeMode = themeMode,
+                            onThemeModeChange = onThemeModeChange,
+                        )
                     }
                 }
 
                 Text(
-                    "ZAMCAN  ·  ZR 4  ·  LOCAL WORKSPACE",
+                    "ZR 4  ·  LOCAL SCIENTIFIC WORKSPACE",
                     color = Muted.copy(alpha = 0.75f),
-                    fontSize = 11.sp,
-                    letterSpacing = 1.4.sp,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.1.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 )
@@ -588,59 +650,39 @@ private fun OverviewScreen(
     selectedSource: String,
     spectrumFrame: SpectrumFrame?,
     onExploreSources: () -> Unit,
-    onOpenSessions: () -> Unit,
+    onOpenSpectrum: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Eyebrow("OBSERVATORY / OVERVIEW")
-            Text("Measure what is real.", fontSize = 27.sp, fontWeight = FontWeight.Black, lineHeight = 32.sp)
-            Text(
-                "A local-first workspace for optical observations, Android-reported radio data, " +
-                    "and compatible external receivers.",
-                color = Muted, fontSize = 14.sp, lineHeight = 21.sp,
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Eyebrow("ZR 4 / INSTRUMENT")
+            Text("Observe the real world.", fontSize = 25.sp, fontWeight = FontWeight.Black, lineHeight = 30.sp)
+            Text("Local measurements, traceable samples, no fabricated readings.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
 
         StatusHero(hasMeasurement = spectrumFrame != null, onExploreSources = onExploreSources)
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("SPECTRUM", if (spectrumFrame == null) spectrumStateFor(selectedSource).first else "ANALYSED INPUT")
-            SpectrumPanel(selectedSource, spectrumFrame)
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionHeading("OBSERVATION CHANNELS", "4 MODULES")
-            BoxWithConstraints {
-                if (maxWidth >= 580.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Camera-visible light", "IN DEVELOPMENT", Modifier.weight(1f))
-                            SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android API observations", "OS-LIMITED", Modifier.weight(1f))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SourceSummary("External SDR", InstrumentIconKind.Antenna, Amber, "RTL-TCP network I/Q; USB pending", "NETWORK / HARDWARE", Modifier.weight(1f))
-                            SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV export", "STORAGE READY", Modifier.weight(1f))
-                        }
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SourceSummary("Optical observation", InstrumentIconKind.Lens, Gold, "Camera-visible light and indicator timing", "IN DEVELOPMENT")
-                        SourceSummary("Wi-Fi and Bluetooth", InstrumentIconKind.Radio, Mint, "Wi-Fi snapshots and bounded BLE observations", "OS-LIMITED")
-                        SourceSummary("RTL-TCP network SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q from a configured rtl_tcp server", "NETWORK / HARDWARE")
-                        SourceSummary("Measurement sessions", InstrumentIconKind.Layers, Stone, "SQLite records and CSV export", "STORAGE READY")
-                    }
+        SectionHeading("OBSERVATION CHANNELS", "4 MODULES")
+        BoxWithConstraints {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    SourceSummary("Optical", InstrumentIconKind.Lens, Gold, "Visible-light input", "IN DEVELOPMENT", Modifier.weight(1f))
+                    SourceSummary("Wi-Fi / BLE", InstrumentIconKind.Radio, Mint, "Android metadata", "OS-LIMITED", Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    SourceSummary("RTL-TCP SDR", InstrumentIconKind.Antenna, Amber, "Network I/Q; USB pending", "RECEIVER REQUIRED", Modifier.weight(1f))
+                    SourceSummary("Sessions", InstrumentIconKind.Layers, Stone, "Local records and CSV", "STORAGE READY", Modifier.weight(1f))
                 }
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassButton("Explore sources", onExploreSources, Modifier.weight(1f))
-            GlassButton("Sessions", onOpenSessions, Modifier.weight(1f))
+            GlassButton("Observe sources", onExploreSources, Modifier.weight(1f))
+            GoldButton("Open spectrum", onOpenSpectrum, Modifier.weight(1f))
         }
 
         Text(
-            "Accuracy rule: no invented readings. A phone camera detects light, not radio " +
-                "frequency. Continuous RF analysis requires a compatible receiver.",
+            "Phone Wi-Fi/BLE observations are metadata, not a calibrated wideband spectrum. " +
+                "RF spectrum analysis requires imported I/Q or a compatible receiver.",
             color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
         )
     }
@@ -673,8 +715,8 @@ private fun StatusHero(hasMeasurement: Boolean, onExploreSources: () -> Unit) {
                     color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TrustTag("OFFLINE-FIRST")
-                    TrustTag("SOURCE-VERIFIED")
+                    TrustTag("LOCAL-FIRST")
+                    TrustTag("NO SYNTHETIC DATA")
                 }
                 GoldButton("Configure observation source", onExploreSources, Modifier.fillMaxWidth())
             }
@@ -1713,44 +1755,93 @@ private fun MetricPill(label: String, value: String) {
 /* ------------------------------------------------------------------ about */
 
 @Composable
-private fun AboutScreen() {
+private fun SpectrumScreen(
+    selectedSource: String,
+    frame: SpectrumFrame?,
+    onOpenSessions: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Eyebrow("PRODUCT / IDENTITY")
-        GlassPanel(accent = Gold, shape = RoundedCornerShape(26.dp), padding = 22.dp) {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.brand_lockup),
-                    contentDescription = "ZR 4 — ZamCan RF Observatory",
-                    modifier = Modifier.size(150.dp),
-                )
-                Text("ZamCan RF Observatory", fontSize = 23.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
-                Text(
-                    "ZR 4 is a native Android scientific observation workspace designed around traceable " +
-                        "inputs, offline-first operation, and honest measurement limits.",
-                    color = Muted, fontSize = 13.sp, lineHeight = 20.sp, textAlign = TextAlign.Center,
-                )
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Eyebrow("ANALYSIS / SPECTRUM")
+            Text("Spectrum analysis", fontSize = 25.sp, fontWeight = FontWeight.Black)
+            Text("Latest computed frame from imported samples or an actual RTL-TCP capture.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
-        InfoRow("Product", "ZR 4", InstrumentIconKind.Diamond, Gold)
-        InfoRow("Formal name", "ZamCan RF Observatory", InstrumentIconKind.Crosshair, Mint)
-        InfoRow("Package", "com.zamcan.zr4", InstrumentIconKind.Grid, Gold)
-        InfoRow("Build", "0.1.0 · Foundation interface — Observatory Glass", InstrumentIconKind.Diamond, Amber)
-        InfoRow("Operating mode", "Local-first", InstrumentIconKind.Home, Mint)
+        SpectrumPanel(selectedSource, frame)
+        GlassPanel(accent = Mint, shape = RoundedCornerShape(18.dp), padding = 15.dp) {
+            SectionHeading("INPUT STATUS", if (frame == null) "NO DATA" else "ANALYSIS READY")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (frame == null) "No analysed sample frame is available yet." else "Source: ${frame.provenance.hardwareDescription}",
+                color = Paper, fontSize = 13.sp, lineHeight = 19.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Levels are relative dBFS, not calibrated dBm or dBm/Hz. A peak is a candidate feature, not transmitter or protocol identification. This is not a continuous waterfall.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(10.dp))
+            GoldButton("Import or capture samples", onOpenSessions, Modifier.fillMaxWidth())
+        }
+    }
+}
 
-        SectionHeading("ENGINEERING PRINCIPLES", "NON-NEGOTIABLE")
-        InfoRow("Data integrity", "Never fabricate live readings", InstrumentIconKind.Check, Mint)
-        InfoRow("Measurement provenance", "Identify the actual source and limitations", InstrumentIconKind.Crosshair, Gold)
-        InfoRow("RF capability", "Receiver-dependent; no transmission", InstrumentIconKind.Antenna, Amber)
-        InfoRow("Privacy", "Use authorized devices and respect local regulations", InstrumentIconKind.Lock, Stone)
-
-        Text(
-            "This version combines the Observatory Glass interface with SQLite-backed session workflows and CSV metadata export. " +
-                "Android Wi-Fi and Bluetooth Low Energy scan metadata are available with runtime permissions; physical handset behavior remains to be verified. Live optical acquisition, real-sample plots, and external SDR integration remain to be implemented.",
-            color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
-        )
+@Composable
+private fun SettingsScreen(
+    themeMode: AppThemeMode,
+    onThemeModeChange: (AppThemeMode) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Eyebrow("PREFERENCES / SYSTEM")
+            Text("Settings", fontSize = 25.sp, fontWeight = FontWeight.Black)
+            Text("Appearance and instrument information.", color = Muted, fontSize = 13.sp)
+        }
+        GlassPanel(accent = Gold, shape = RoundedCornerShape(20.dp), padding = 16.dp) {
+            Text("Appearance", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Choose how ZR 4 follows your viewing environment.", color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppThemeMode.entries.forEach { mode ->
+                    val selected = themeMode == mode
+                    Column(
+                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) Gold.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f))
+                            .border(1.dp, if (selected) Gold else GlassLine, RoundedCornerShape(14.dp))
+                            .selectable(selected = selected, role = Role.RadioButton) { onThemeModeChange(mode) }
+                            .padding(horizontal = 6.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        InstrumentIcon(
+                            when (mode) {
+                                AppThemeMode.System -> InstrumentIconKind.Settings
+                                AppThemeMode.Light -> InstrumentIconKind.Diamond
+                                AppThemeMode.Dark -> InstrumentIconKind.Lens
+                            }, if (selected) Gold else Muted, Modifier.size(22.dp),
+                        )
+                        Text(mode.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (selected) Gold else Paper)
+                        Text(mode.detail, fontSize = 9.sp, color = Muted, textAlign = TextAlign.Center, maxLines = 2)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Preference is saved on this device and applied immediately.", color = Muted, fontSize = 11.sp)
+        }
+        GlassPanel(accent = Mint, shape = RoundedCornerShape(20.dp), padding = 16.dp) {
+            Eyebrow("ABOUT ZR 4", Mint)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Image(painter = painterResource(R.drawable.brand_mark), contentDescription = "ZR 4 instrument mark", modifier = Modifier.size(58.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("ZamCan RF Observatory", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("ZR 4 · Version 0.1.0", color = Muted, fontSize = 12.sp)
+                    Text("Package: com.zamcan.zr4", color = Muted, fontSize = 11.sp)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            InfoRow("Data integrity", "No fabricated live readings", InstrumentIconKind.Check, Mint)
+            Spacer(Modifier.height(8.dp))
+            InfoRow("Measurement units", "Relative dBFS; no calibrated dBm claim", InstrumentIconKind.Waveform, Gold)
+            Spacer(Modifier.height(8.dp))
+            InfoRow("Receiver support", "RTL-TCP network path; direct USB pending", InstrumentIconKind.Antenna, Amber)
+            Spacer(Modifier.height(8.dp))
+            InfoRow("Privacy", "Local SQLite metadata; raw I/Q remains in memory", InstrumentIconKind.Lock, Stone)
+        }
     }
 }
