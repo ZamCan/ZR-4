@@ -29,7 +29,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
@@ -229,8 +231,10 @@ private fun Zr4App() {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 Box(
                     Modifier
+                        .widthIn(max = 952.dp)
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -242,6 +246,7 @@ private fun Zr4App() {
                 ) {
                     AppHeader()
                 }
+                }
             },
             bottomBar = {
                 FloatingGlassNav(
@@ -250,10 +255,15 @@ private fun Zr4App() {
                 )
             },
         ) { innerPadding ->
+            Box(
+                Modifier.fillMaxSize().padding(innerPadding),
+                contentAlignment = Alignment.TopCenter,
+            ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
+                    .widthIn(max = 920.dp)
+                    .fillMaxWidth()
+                    .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 18.dp)
                     .padding(top = 8.dp, bottom = 30.dp),
@@ -303,6 +313,7 @@ private fun Zr4App() {
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                 )
             }
+            }
         }
     }
     }
@@ -340,9 +351,10 @@ private fun AuroraBackground() {
 
 @Composable
 private fun FloatingGlassNav(section: AppSection, onSelect: (AppSection) -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
         Row(
             modifier = Modifier
+                .widthIn(max = 560.dp)
                 .fillMaxWidth()
                 .shadow(18.dp, RoundedCornerShape(28.dp), spotColor = Color.Black.copy(alpha = 0.55f))
                 .clip(RoundedCornerShape(28.dp))
@@ -383,7 +395,7 @@ private fun FloatingGlassNav(section: AppSection, onSelect: (AppSection) -> Unit
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     InstrumentIcon(item.icon, tint, Modifier.size(22.dp))
-                    Text(item.label, color = tint, fontSize = 11.sp, maxLines = 1, fontWeight = FontWeight.SemiBold)
+                    Text(item.label, color = tint, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -418,9 +430,10 @@ private fun AppHeader() {
             Text(
                 "ZAMCAN RF OBSERVATORY",
                 color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Text("ZR 4", color = Paper, fontSize = 25.sp, fontWeight = FontWeight.Black, lineHeight = 28.sp)
-            Text("Scientific observation workspace", color = Muted, fontSize = 12.sp)
+            Text("Scientific observation workspace", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         GlassChip(dot = Mint, text = "LOCAL")
     }
@@ -1692,7 +1705,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
                         IconBadge(InstrumentIconKind.Clock, if (session.state == ObservationSessionState.OPEN) Mint else Stone, 38.dp)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(session.title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(session.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(session.startedAtEpochMillis)),
                                 color = Muted, fontSize = 11.sp
@@ -1933,7 +1946,7 @@ private fun MetricPill(label: String, value: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Text(value, color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black)
+        Text(value, color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 1)
         Text(label, color = Muted, fontSize = 10.sp, maxLines = 1)
     }
 }
