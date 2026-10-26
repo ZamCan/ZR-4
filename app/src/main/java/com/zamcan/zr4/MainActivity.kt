@@ -311,6 +311,7 @@ private fun Zr4App(
                         AppSection.Sources -> SourcesScreen(
                             selectedSource = selectedSource,
                             onSelectSource = { selectedSource = it },
+                            onOpenSessions = { section = AppSection.Sessions },
                         )
                         AppSection.Spectrum -> SpectrumScreen(
                             selectedSource = selectedSource,
@@ -917,7 +918,11 @@ private fun SourceSummary(
 /* ---------------------------------------------------------------- sources */
 
 @Composable
-private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Unit) {
+private fun SourcesScreen(
+    selectedSource: String,
+    onSelectSource: (String) -> Unit,
+    onOpenSessions: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Eyebrow("OBSERVATORY / INPUTS", Mint)
@@ -967,6 +972,8 @@ private fun SourcesScreen(selectedSource: String, onSelectSource: (String) -> Un
                 },
                 color = Muted, fontSize = 13.sp, lineHeight = 19.sp,
             )
+            Spacer(Modifier.height(12.dp))
+            GoldButton("Open observation controls", onOpenSessions, Modifier.fillMaxWidth())
         }
     }
 }
