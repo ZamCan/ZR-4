@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
@@ -171,7 +172,7 @@ private fun applyInstrumentPalette(dark: Boolean) {
         GlassLine = Color.White.copy(alpha = 0.16f)
     } else {
         Ink = Color(0xFF202820); InkDeep = Color(0xFFF3F5F0); Emerald = Color(0xFFFFFFFF)
-        Gold = Color(0xFF8B641D); GoldLight = Color(0xFFE0C27A); GoldDeep = Color(0xFF6F4D12)
+        Gold = Color(0xFF8B641D); GoldLight = Color(0xFFE8CE8B); GoldDeep = Color(0xFFB58A36)
         InkLow = Color(0xFFE8EEE6); Amber = Color(0xFF8A4B08); Mint = Color(0xFF087A58)
         Stone = Color(0xFF6E6250); Paper = Color(0xFF202820); Muted = Color(0xFF5C685F)
         GlassLine = Color(0xFFBCC7BD)
@@ -218,7 +219,12 @@ class MainActivity : ComponentActivity() {
             var themeMode by remember { mutableStateOf(initialTheme) }
             val systemDark = isSystemInDarkTheme()
             val dark = themeMode.isDark(systemDark)
-            LaunchedEffect(dark) { applyInstrumentPalette(dark) }
+            LaunchedEffect(dark) {
+                applyInstrumentPalette(dark)
+                val bars = WindowCompat.getInsetsController(window, window.decorView)
+                bars.isAppearanceLightStatusBars = !dark
+                bars.isAppearanceLightNavigationBars = !dark
+            }
             MaterialTheme(
                 colorScheme = if (dark) {
                     darkColorScheme(
