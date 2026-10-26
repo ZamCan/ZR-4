@@ -102,10 +102,9 @@ class RfAnalysisCoordinatorTest {
             )
             override fun capture(request: SdrCaptureRequest): NormalizedComplexIqCapture {
                 capabilities.validate(request)
-                val toneBin = 64
                 return NormalizedComplexIqCapture(
-                    DoubleArray(n) { index -> 0.5 * kotlin.math.cos(2.0 * PI * toneBin * index / n) },
-                    DoubleArray(n) { index -> 0.5 * kotlin.math.sin(2.0 * PI * toneBin * index / n) },
+                    DoubleArray(n) { i -> 0.5 * kotlin.math.cos(2.0 * PI * 64 * i / n) },
+                    DoubleArray(n) { i -> 0.5 * kotlin.math.sin(2.0 * PI * 64 * i / n) },
                     request.centerFrequencyHz, request.sampleRateHz,
                     now - 2_000L, now - 1_000L, "Test SDR fixture"
                 )
@@ -139,6 +138,12 @@ class RfAnalysisCoordinatorTest {
         assertEquals(n, result.observation.sampleCount)
         assertEquals(1, saved.observations.size)
         assertEquals(result.analysis.provenance.run.outcome, saved.analysisRuns.single().outcome)
+        val computedSpectrum = requireNotNull(result.analysis.spectrumFrame)
+        assertEquals(n, computedSpectrum.amplitudeDbfs.size)
+        assertTrue(
+            "The deterministic tone should be visible in the computed dBFS spectrum",
+            computedSpectrum.amplitudeDbfs.maxOrNull()!! > -20.0
+        )
         assertEquals(result.analysis.provenance.findings.size, saved.findings.size)
         assertEquals("two-sided centered complex-I/Q RF bins",
             saved.analysisRuns.single().parameters["frequencyInterpretation"])
