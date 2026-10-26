@@ -74,7 +74,7 @@ Run the Android instrumentation tests on a connected device/emulator:
 ./tools/build.sh connectedDebugAndroidTest
 ```
 
-The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. Recent fast CI run [#40278617251](https://github.com/ZamCan/ZR-4/actions/runs/40278617251) passed APK assembly, JVM unit tests, and debug APK artifact upload on the related instrumentation-fix branch. This PR's exact head still needs its own fast CI result. Emulator instrumentation is intentionally manual because prior runs were excessively long; physical handset and RTL-SDR validation remain separate.
+The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. The latest UI-branch fast CI run [#40379642043](https://github.com/ZamCan/ZR-4/actions/runs/40379642043) passed debug APK assembly, JVM unit tests, Android instrumentation-test APK compilation, and debug APK artifact upload. The emulator test suite was not executed in that fast run; physical handset and RTL-SDR validation remain separate.
 
 ## Live device log capture
 
@@ -106,7 +106,7 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 
 Use ZR 4 only with devices and radio environments you are authorized to observe. Respect local radio regulations and privacy. Do not claim frequency, power, dBm, bandwidth, noise-floor, or calibration values unless the actual source supports them. Record calibration and uncertainty where relevant.
 
-**Status:** RTL-TCP analysis integration is implemented online. The UI engineering branch is undergoing a fresh build and JVM validation; Android instrumentation, physical handset behaviour, and physical RTL-SDR operation remain separate verification steps. A successful build does not prove real hardware acquisition.
+**Status:** The native UI engineering branch has passed fast CI for APK assembly, JVM tests, instrumentation-test compilation, and artifact upload. Emulator instrumentation and physical handset/receiver tests remain outstanding. A successful build does not prove real hardware acquisition.
 
 
 ## Local device validation and safe in-place updates
