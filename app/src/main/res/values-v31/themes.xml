@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 31+ native splash screen (light): brand symbol on the paper
+         canvas. No artificial delay — the system splash ends as soon as the
+         first frame is drawn. Pre-API-31 devices show the plain themed
+         window background, which uses the same colour. -->
+    <style name="Theme.ZR4" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/window_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/brand_symbol</item>
+    </style>
+</resources>

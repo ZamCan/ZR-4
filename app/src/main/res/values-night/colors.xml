@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night launch window: deep observatory ink (first frame + splash). -->
+    <color name="window_background">#050D08</color>
+</resources>

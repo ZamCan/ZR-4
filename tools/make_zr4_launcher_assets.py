@@ -76,9 +76,20 @@ if __name__ == "__main__":
     icon512.save(os.path.join(nodpi, "brand_icon.png"), optimize=True)
     print("app/src/main/res/drawable-nodpi/brand_icon.png", icon512.size)
 
+    # Monochrome layer for Android themed icons: the symbol's alpha as a
+    # single-colour silhouette (the system tints it). Reusing the colour
+    # foreground here would ignore the user's theme colour entirely.
+    silhouette = Image.new("RGBA", symbol.size, (0, 0, 0, 255))
+    silhouette.putalpha(symbol.getchannel("A"))
+
     for dens, sz in FG.items():
         fg = fit_inside(Image.new("RGBA", (sz, sz), (0, 0, 0, 0)), symbol, 0.60)
         path = os.path.join(RES, f"mipmap-{dens}", "ic_launcher_foreground.png")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         fg.save(path, optimize=True)
         print(os.path.relpath(path, ROOT), fg.size, "alpha bbox:", fg.getchannel("A").getbbox())
+
+        mono = fit_inside(Image.new("RGBA", (sz, sz), (0, 0, 0, 0)), silhouette, 0.60)
+        mpath = os.path.join(RES, f"mipmap-{dens}", "ic_launcher_monochrome.png")
+        mono.save(mpath, optimize=True)
+        print(os.path.relpath(mpath, ROOT), mono.size, "alpha bbox:", mono.getchannel("A").getbbox())

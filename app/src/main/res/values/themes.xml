@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App (light) theme. Only the launch window is styled here: Compose owns
+         all in-app colours. The window background is the light canvas so the
+         first frame never flashes the wrong tone. Status/navigation bars are
+         transparent because the app draws edge-to-edge (enableEdgeToEdge). -->
+    <style name="Theme.ZR4" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
