@@ -31,12 +31,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -1605,6 +1609,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
             Text("Create local records, inspect evidence, and export traceable session metadata.", color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
         }
 
+        SectionHeading("RECORD", "ON-DEVICE ACTIONS")
         GlassPanel(accent = Stone, shape = RoundedCornerShape(24.dp), padding = 18.dp) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconBadge(InstrumentIconKind.Layers, Stone, 46.dp)
@@ -1614,15 +1619,19 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            GoldButton("＋  Start observation session", ::startSession, Modifier.fillMaxWidth())
+            GoldButton("Start observation session", ::startSession, Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
             GlassButton(
                 "Import normalized sample CSV",
                 { openSampleDocument.launch(arrayOf("text/*", "application/*")) },
                 Modifier.fillMaxWidth()
             )
+            Text(
+                "Accepts normalized real samples (sample) or complex I/Q pairs (i,q). The file must contain finite values in [-1, 1], with a power-of-two sample count. Import does not mean live capture.",
+                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
+            )
             Spacer(Modifier.height(8.dp))
-            GoldButton(
+            GlassButton(
                 if (sdrCaptureInProgress) "Capturing RTL-TCP samples…" else "Capture from RTL-TCP network SDR",
                 { if (!sdrCaptureInProgress) showSdrDialog = true },
                 Modifier.fillMaxWidth()
@@ -1632,7 +1641,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp
             )
             Spacer(Modifier.height(8.dp))
-            GoldButton(
+            GlassButton(
                 "Record Wi-Fi scan snapshot",
                 {
                     val permissionsGranted = wifiPermissions.all {
@@ -1647,7 +1656,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp
             )
             Spacer(Modifier.height(8.dp))
-            GoldButton(
+            GlassButton(
                 if (bluetoothScanInProgress) "Scanning Bluetooth LE…" else "Record Bluetooth LE scan",
                 {
                     val granted = bluetoothPermissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
@@ -1657,10 +1666,6 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
             )
             Text(
                 "Runs a bounded 5-second Bluetooth Low Energy scan. Counts scan-result callbacks, not unique devices. Device names, addresses, and advertisement payloads are not saved. This is not an RF spectrum capture.",
-                color = Muted, fontSize = 11.sp, lineHeight = 16.sp
-            )
-            Text(
-                "Accepts normalized real samples (sample) or complex I/Q pairs (i,q). The file must contain finite values in [-1, 1], with a power-of-two sample count. Import does not mean live capture.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp
             )
             Spacer(Modifier.height(8.dp))
@@ -1706,7 +1711,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                     }
                     if (session.state == ObservationSessionState.OPEN) {
                         Spacer(Modifier.height(8.dp))
-                        GoldButton("Close session", { closeSession(session.id) }, Modifier.fillMaxWidth())
+                        GlassButton("Close session", { closeSession(session.id) }, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -1725,7 +1730,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                 }
                 if (snapshot.session.state == ObservationSessionState.OPEN) {
                     Spacer(Modifier.height(10.dp))
-                    GoldButton("＋  Add field note (not a measurement)", {
+                    GlassButton("Add field note (not a measurement)", {
                         noteText = ""
                         showNoteDialog = true
                     }, Modifier.fillMaxWidth())
@@ -1762,23 +1767,61 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
     }
 
     if (showSdrDialog) {
+        val sdrInputReady = ReceiverInput.isSdrCaptureReady(
+            sdrHost, sdrPort, sdrCenterFrequency, sdrSampleRate, sdrSampleCount,
+        )
         AlertDialog(
             onDismissRequest = { if (!sdrCaptureInProgress) showSdrDialog = false },
             title = { Text("RTL-TCP network receiver") },
             text = {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         "The remote computer must already run rtl_tcp with a compatible RTL-SDR connected. Use its reachable IP/hostname and port. The server protocol has no per-sample timestamps or reliable tuning acknowledgement.",
                         color = Muted, fontSize = 12.sp, lineHeight = 18.sp
                     )
-                    OutlinedTextField(sdrHost, { sdrHost = it }, label = { Text("Server host or IP *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sdrPort, { sdrPort = it }, label = { Text("TCP port *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sdrCenterFrequency, { sdrCenterFrequency = it }, label = { Text("Center frequency (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sdrSampleRate, { sdrSampleRate = it }, label = { Text("Sample rate (Hz) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(sdrSampleCount, { sdrSampleCount = it }, label = { Text("Sample count (power of two) *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = sdrHost, onValueChange = { sdrHost = it },
+                        label = { Text("Server host or IP *") },
+                        isError = sdrHost.isNotBlank() && !ReceiverInput.isValidHost(sdrHost),
+                        supportingText = { if (sdrHost.isNotBlank() && !ReceiverInput.isValidHost(sdrHost)) Text("Host name or IP only — no scheme, port, or spaces") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = sdrPort, onValueChange = { sdrPort = it },
+                        label = { Text("TCP port *") },
+                        isError = sdrPort.isNotBlank() && ReceiverInput.parseTcpPort(sdrPort) == null,
+                        supportingText = { if (sdrPort.isNotBlank() && ReceiverInput.parseTcpPort(sdrPort) == null) Text("Port must be between 1 and 65535") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = sdrCenterFrequency, onValueChange = { sdrCenterFrequency = it },
+                        label = { Text("Center frequency (Hz) *") },
+                        isError = sdrCenterFrequency.isNotBlank() && ReceiverInput.parsePositiveLong(sdrCenterFrequency) == null,
+                        supportingText = { if (sdrCenterFrequency.isNotBlank() && ReceiverInput.parsePositiveLong(sdrCenterFrequency) == null) Text("Enter a positive whole number (Hz)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = sdrSampleRate, onValueChange = { sdrSampleRate = it },
+                        label = { Text("Sample rate (Hz) *") },
+                        isError = sdrSampleRate.isNotBlank() && ReceiverInput.parsePositiveLong(sdrSampleRate) == null,
+                        supportingText = { if (sdrSampleRate.isNotBlank() && ReceiverInput.parsePositiveLong(sdrSampleRate) == null) Text("Enter a positive whole number (Hz)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = sdrSampleCount, onValueChange = { sdrSampleCount = it },
+                        label = { Text("Sample count (power of two) *") },
+                        isError = sdrSampleCount.isNotBlank() && ReceiverInput.parsePowerOfTwoCount(sdrSampleCount) == null,
+                        supportingText = { if (sdrSampleCount.isNotBlank() && ReceiverInput.parsePowerOfTwoCount(sdrSampleCount) == null) Text("Must be a power of two (for example 4096 or 8192)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    )
                     Text(
                         "Capture is saved to the selected open session, then analysed locally. Samples remain in memory, not in the metadata database. Levels are dBFS, not calibrated dBm.",
                         color = Amber, fontSize = 11.sp, lineHeight = 16.sp
@@ -1786,7 +1829,7 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = ::captureSdr, enabled = !sdrCaptureInProgress) { Text(if (sdrCaptureInProgress) "Capturing…" else "Capture and analyse") }
+                TextButton(onClick = ::captureSdr, enabled = !sdrCaptureInProgress && sdrInputReady) { Text(if (sdrCaptureInProgress) "Capturing…" else "Capture and analyse") }
             },
             dismissButton = {
                 TextButton(onClick = { if (!sdrCaptureInProgress) showSdrDialog = false }, enabled = !sdrCaptureInProgress) { Text("Cancel") }
@@ -1802,7 +1845,10 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
             },
             title = { Text("Confirm sample metadata") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text(
                         "File: $pendingImportName · ${pendingImportPayload?.sampleCount ?: 0} samples. Enter metadata from the original capture/export settings; it cannot be inferred from sample values.",
                         color = Muted, fontSize = 12.sp, lineHeight = 18.sp
@@ -1811,6 +1857,9 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                         value = importSampleRate,
                         onValueChange = { importSampleRate = it },
                         label = { Text("Sample rate (Hz) *") },
+                        isError = importSampleRate.isNotBlank() && ReceiverInput.parsePositiveLong(importSampleRate) == null,
+                        supportingText = { if (importSampleRate.isNotBlank() && ReceiverInput.parsePositiveLong(importSampleRate) == null) Text("Enter a positive whole number (Hz)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1818,6 +1867,9 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
                         value = importCenterFrequency,
                         onValueChange = { importCenterFrequency = it },
                         label = { Text("Center frequency (Hz; required for I/Q)") },
+                        isError = importCenterFrequency.isNotBlank() && ReceiverInput.parsePositiveLong(importCenterFrequency) == null,
+                        supportingText = { if (importCenterFrequency.isNotBlank() && ReceiverInput.parsePositiveLong(importCenterFrequency) == null) Text("Enter a positive whole number (Hz), or leave blank for real samples") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1844,7 +1896,10 @@ private fun SessionsScreen(onSpectrumFrame: (SpectrumFrame?) -> Unit) {
             onDismissRequest = { showNoteDialog = false },
             title = { Text("Add field note") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     Text("This saves your own note as incomplete metadata. It does not create a sensor reading or RF measurement.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
                     OutlinedTextField(
                         value = noteText,
