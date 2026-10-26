@@ -74,7 +74,14 @@ Run the Android instrumentation tests on a connected device/emulator:
 ./tools/build.sh connectedDebugAndroidTest
 ```
 
-The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. Latest fast CI run [#89](https://github.com/ZamCan/ZR-4/actions/runs/40204075952) passed APK assembly, JVM unit tests, and debug APK artifact upload. Emulator instrumentation was intentionally skipped in this fast run; it is available as a manual workflow. Physical handset and RTL-SDR validation remain separate.
+The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk`. A successful build or Android-test APK compilation does not mean instrumentation tests have executed. Recent fast CI run [#40278617251](https://github.com/ZamCan/ZR-4/actions/runs/40278617251) passed APK assembly, JVM unit tests, and debug APK artifact upload on the related instrumentation-fix branch. This PR's exact head still needs its own fast CI result. Emulator instrumentation is intentionally manual because prior runs were excessively long; physical handset and RTL-SDR validation remain separate.
+
+## Live device log capture
+
+- Android Developer Options > Select debug app > ZR 4 only configures debugger attachment; it does not stream logs to GitHub or grant Termux privileged log access. Keep **Wait for debugger** off for normal testing.
+- If ADB is already authorized and connected, start a capture before reproducing a problem: `adb logcat -v time > zr4-logcat.txt`. Stop with Ctrl+C after the issue appears. For a focused live view use `adb logcat -v time | grep -iE 'AndroidRuntime|FATAL EXCEPTION|com.zamcan.zr4|ZR4'`.
+- On the same Android phone, Termux's `adb` client does not automatically get access to the phone's own system ADB service. If `adb devices` shows no device or `adb logcat` returns a permission error, do not uninstall the app or change signing; use Android's **Take bug report** option to capture a system log, or connect to an authorized ADB host later.
+- GitHub Actions logs show build/test results from GitHub's runner, not live logs from the physical phone. Upload only the relevant log excerpt and remove Wi-Fi names, addresses, tokens, and other private data first.
 
 ## Staged roadmap
 
@@ -97,4 +104,13 @@ The debug APK is normally produced at `app/build/outputs/apk/debug/app-debug.apk
 
 Use ZR 4 only with devices and radio environments you are authorized to observe. Respect local radio regulations and privacy. Do not claim frequency, power, dBm, bandwidth, noise-floor, or calibration values unless the actual source supports them. Record calibration and uncertainty where relevant.
 
-**Status:** online branch builds and passes JVM tests; run #89 uploaded a debug APK. Emulator instrumentation was skipped for speed, and physical handset/receiver checks remain outstanding. A successful build does not prove real hardware acquisition.
+**Status:** RTL-TCP analysis integration is implemented online. The latest successful fast run is linked above, but this PR's exact head needs fresh fast CI. Emulator instrumentation and physical handset/receiver checks remain outstanding. A successful build does not prove real hardware acquisition.
+
+
+## Local device validation and safe in-place updates
+
+- Build the debug APK locally in the same Android/Termux environment that produced the installed debug app. Android debug builds use that environment's `~/.android/debug.keystore`; preserve it to keep the signing certificate stable.
+- Do not install the APK downloaded from GitHub Actions over a locally signed debug app unless its signer certificate is verified to match. GitHub-hosted runners normally use a different debug keystore.
+- Use `adb install -r app/build/outputs/apk/debug/app-debug.apk` for an in-place update only after verifying the application ID and signer. The application ID is `com.zamcan.zr4`.
+- Capture device logs with `adb logcat`; selecting ZR 4 as the Developer Options debug app is optional and is only needed for wait-for-debugger workflows. Do not enable “Wait for debugger” for ordinary log capture.
+- Current implementation does not yet have direct USB SDR acquisition, calibrated dBm measurements, or a live continuous waterfall. A configured RTL-TCP endpoint must be reachable and attached to a real receiver for physical testing.
