@@ -132,3 +132,55 @@ button row (same destinations as the hero CTA and tab bar) and its now-dead
 secondary button component were removed — every visible control now does
 exactly one real thing. The spectrum header also carries the selected
 source's icon and module tint, so the pane's state is readable at a glance.
+
+---
+
+## Enterprise Phase 1 — theme system, settings, splash, monochrome icon
+
+Implemented on top of the merged RTL-TCP engineering main (this branch
+contains `origin/main` plus the stages below; compile verification is via the
+repository CI on a future PR — see README status).
+
+### Centralized light/dark themes (`ZrTheme.kt`)
+
+All colour tokens live in one file as getters over an active `ZrPalette`
+(snapshot state, so composables **and** Canvas draw code follow a switch):
+
+| Token role | Dark (Observatory night) | Light (warm paper) |
+|---|---|---|
+| Canvas (`Ink/InkDeep/InkLow`) | `#090D0A / #03070B / #07130D` | `#F6F2E6 / #E7E1CF / #FCF9F0` |
+| Primary text (`Paper`) | `#F2F5EC` | `#1A241C` |
+| Secondary text (`Muted`) | `#AFBDB0` | `#52635A` |
+| Action gold (`Gold`) | `#D6B56D` | `#86651B` |
+| Ready mint / hardware amber / records stone | `#6EE7B7 / #FFB86B / #C9BBA6` | `#0B7A54 / #99590C / #68573F` |
+
+The dark palette is byte-identical to the previous hardcoded values; light
+accents are deepened so paper/muted/gold/mint/amber text and the gold-button
+label all measure **>= 4.5:1** (asserted in `ZrThemeTest`). Material3 gets a
+matching `darkColorScheme`/`lightColorScheme`, so Material text fields and
+dialogs track the same theme, and system-bar icon appearance follows the
+active palette. The spectrum plot remains a dark instrument screen in both
+themes (`PlotLine` grid), so trace contrast never depends on the shell theme.
+Appearance mode (System/Light/Dark) persists in private SharedPreferences
+(`ZrPreferences.kt`); System follows `isSystemInDarkTheme()` (including
+runtime flips).
+
+### Settings, Back behaviour, receiver defaults
+
+Settings is a real fifth destination containing only behaviour-changing
+preferences: the appearance radio group (applies instantly), the saved
+RTL-TCP endpoint (Sessions capture fields now default to it and update it as
+edited; connecting/capturing still happens only in Sessions), an accurate
+local-data/privacy note, and the installed version from `PackageManager`.
+System Back from any destination returns to Overview before exiting.
+
+### Splash and launcher icon completion
+
+`Theme.ZR4` (values / values-night) gives the launch window the correct
+paper/ink background with transparent system bars for edge-to-edge;
+values-v31 / values-night-v31 add the API 31 native splash showing
+`brand_symbol` on the themed background — no artificial delay, no extra
+dependency. Adaptive icons now use a genuine single-colour
+`ic_launcher_monochrome` silhouette per density (generated from the symbol
+alpha, safe-zone fitted) instead of reusing the colour foreground, so
+themed icons tint correctly on light and dark launchers.

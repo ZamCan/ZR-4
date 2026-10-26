@@ -43,7 +43,10 @@ Raw IQ/sample payloads are intentionally not stored in the metadata database. Un
 
 - Premium glassmorphic panels with a restrained aurora background; no blur-library dependency
 - Instrument gold for primary actions/identity, mint for ready/local states, amber for hardware-gated modules, and warm stone for records
-- Custom Canvas line icons, branded PNG launcher assets, compact pinned header, floating bottom navigation, responsive source panels, and Overview / Sources / Sessions / About sections
+- Custom Canvas line icons, branded PNG launcher assets, compact pinned header, floating bottom navigation, responsive source panels, and Overview / Sources / Sessions / Settings / About sections
+- Complete light + dark themes from one centralized token system (`ZrTheme.kt`): System / Light / Dark appearance in Settings, persisted on-device; the spectrum plot keeps a dark instrument screen in both themes
+- Native light/dark splash (API 31+ splash resources, themed window background on earlier versions) and a true single-colour monochrome launcher icon for Android themed icons
+- System Back returns to Overview; the last-used RTL-TCP endpoint is remembered as the SDR capture default
 - Empty spectrum states remain explicitly **NO DATA** until real samples exist; imported or network-captured I/Q produces a computed dBFS spectrum frame (not a live continuous waterfall)
 - Source selection and navigation are interface actions only; selecting a module does not start acquisition
 - Session workspace uses SQLite for persisted session workflows and offers CSV export; no placeholder measurements are shown
