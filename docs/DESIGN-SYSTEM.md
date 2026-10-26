@@ -184,3 +184,46 @@ dependency. Adaptive icons now use a genuine single-colour
 `ic_launcher_monochrome` silhouette per density (generated from the symbol
 alpha, safe-zone fitted) instead of reusing the colour foreground, so
 themed icons tint correctly on light and dark launchers.
+
+---
+
+## Enterprise Phase 2 — task-first Home, workflow hierarchy, responsive hardening
+
+### Home as an instrument dashboard
+
+Overview opens on state + next action, not description: compact heading,
+status hero whose single primary button starts (or inspects) work in
+**Sessions** — where recording actually happens — then an
+**Instrument status** panel built only from verifiable device truth:
+`PackageManager` Wi-Fi/Bluetooth-LE feature presence, current permission
+grants (read-only here; requests stay contextual in Sessions), the saved
+RTL-TCP endpoint labelled *saved · not connected*, local SQLite readiness,
+and the shell's latest analysed frame (samples · time · relative dBFS) or
+its honest absence. State is conveyed in text, never colour alone. Phone
+layouts list the four channels as compact single-line **action rows**;
+>=580dp keeps the 2x2 summary cards — same destinations and semantics.
+
+### Sessions workflow hierarchy and dialogs
+
+One gold primary per screen is now enforced in Sessions ("Start observation
+session"); RTL-TCP capture, Wi-Fi snapshot, BLE scan, close, and field-note
+actions are secondary glass buttons with unchanged callbacks, permission
+flows and duplicate-start guards. `ReceiverInput` (pure, unit-tested)
+validates host shape, TCP port range, positive Hz values, and power-of-two
+sample counts: the RTL-TCP dialog shows inline errors/supporting text and
+keeps *Capture and analyse* disabled until all fields are well-formed; the
+import dialog flags malformed optional values without blocking the
+engine-validated path. All dialogs scroll and apply `imePadding()`, numeric
+fields use numeric keyboards with Next/Done actions, and engines retain
+their own authoritative validation.
+
+### Responsive strategy
+
+A navigation rail was evaluated and deferred with cause: with five
+destinations the floating bottom bar remains reachable and legible at every
+width, so the shell instead caps measures — content centered at 920dp, top
+bar at 952dp, nav pill at 560dp — preventing stretched lines and edge-to-edge
+panels on tablets/foldables while keeping one navigation model. Header
+identity, nav labels, and session titles ellipsize under narrow widths and
+large font scales instead of clipping or displacing controls; touch targets
+remain ~48dp+ (buttons 52dp, nav items ~49dp, action rows ~62dp).

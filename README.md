@@ -47,6 +47,8 @@ Raw IQ/sample payloads are intentionally not stored in the metadata database. Un
 - Complete light + dark themes from one centralized token system (`ZrTheme.kt`): System / Light / Dark appearance in Settings, persisted on-device; the spectrum plot keeps a dark instrument screen in both themes
 - Native light/dark splash (API 31+ splash resources, themed window background on earlier versions) and a true single-colour monochrome launcher icon for Android themed icons
 - System Back returns to Overview; the last-used RTL-TCP endpoint is remembered as the SDR capture default
+- Task-first Overview: a real instrument-status panel (device radio features, current permission grants, saved-not-connected receiver endpoint, latest analysed capture), one primary action into the Sessions workflow, and compact channel rows on phones (cards on wide layouts)
+- Sessions keeps one primary action (start session); recording/import actions are secondary, and RTL-TCP/import dialogs validate host/port/Hz/power-of-two input inline with numeric keyboards and keyboard-safe scrolling
 - Empty spectrum states remain explicitly **NO DATA** until real samples exist; imported or network-captured I/Q produces a computed dBFS spectrum frame (not a live continuous waterfall)
 - Source selection and navigation are interface actions only; selecting a module does not start acquisition
 - Session workspace uses SQLite for persisted session workflows and offers CSV export; no placeholder measurements are shown
